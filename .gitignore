@@ -8,6 +8,10 @@ __pycache__/
 
 # Never commit the reports. Addresses live in those PDFs.
 reports/
+xactimate/
 extracted/
 ingest-log.txt
 *.pdf
+*.esx
+*.esz
+traces/

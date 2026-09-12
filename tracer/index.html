@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flip Fixer — roof tracer</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <strong>Roof tracer</strong>
+      <span id="status">Loading…</span>
+    </div>
+    <div class="actions">
+      <a id="earth-link" href="#" target="_blank" rel="noreferrer">Google Earth</a>
+      <a href="/api/earth.kml">KML of 49</a>
+      <button type="button" id="btn-guess">Guess outline</button>
+      <button type="button" id="btn-save">Save trace</button>
+      <button type="button" id="btn-fit">Fit scale</button>
+    </div>
+  </header>
+  <main>
+    <aside id="list"></aside>
+    <section id="map"></section>
+    <aside id="panel">
+      <h2 id="roof-title">Pick a roof</h2>
+      <p id="roof-meta"></p>
+      <label>Pitch for new facets
+        <select id="pitch"></select>
+      </label>
+      <label>GSD scale
+        <input id="gsd-scale" type="number" step="0.01" min="0.5" max="2" />
+      </label>
+      <label>Waste %
+        <input id="waste" type="number" step="1" min="0" max="30" />
+      </label>
+      <div id="compare"></div>
+      <p class="hint">Draw a polygon on the roof. One outline is enough to tune scale. Split into facets when you want pitch mix. Field-verify before you order.</p>
+    </aside>
+  </main>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
