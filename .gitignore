@@ -1,0 +1,13 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+.python-version
+
+# Never commit the reports. Addresses live in those PDFs.
+reports/
+extracted/
+ingest-log.txt
+*.pdf

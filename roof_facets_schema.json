@@ -1,0 +1,27 @@
+{
+  "_comment": "Schema for a traced roof. One per property. Feed the estimator the same way room scans feed a kitchen.",
+  "property": {
+    "address": "123 Example St, San Antonio, TX",
+    "lat": 29.4241,
+    "lng": -98.4936,
+    "image_zoom": 20,
+    "image_gsd_ft_per_px": 0.0745
+  },
+  "facets": [
+    {
+      "facet_id": "F1",
+      "facet_type": "hip",
+      "pitch": "6/12",
+      "polygon_px": [[120, 80], [340, 80], [400, 220], [60, 220]],
+      "area_sqft": 812.4,
+      "notes": "Front-facing main roof plane"
+    }
+  ],
+  "summary": {
+    "total_flat_area_sqft": 1152.5,
+    "total_area_with_pitch_multiplier_sqft": 1289.5,
+    "waste_factor_pct": 12,
+    "final_area_sqft_with_waste": 1444.2,
+    "predominant_pitch": "6/12"
+  }
+}
