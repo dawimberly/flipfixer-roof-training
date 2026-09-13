@@ -1,0 +1,4 @@
+{
+  "name": "Flip Fixer roof training",
+  "install": "pip3 install --user -r requirements.txt"
+}
