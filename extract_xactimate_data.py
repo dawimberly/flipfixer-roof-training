@@ -1,8 +1,8 @@
 """
 Pull numbers out of Xactimate PDFs / ESX copies in ./xactimate.
-Join to EagleView rows on normalized address.
+Writes one row per file. Pairing lives in pair_ev_xactimate.py.
 
-    python extract_xactimate_data.py --input_dir ./xactimate --ev_csv ./extracted/eagleview_dataset.csv
+    python extract_xactimate_data.py --input_dir ./xactimate --save_raw_text
 """
 
 from __future__ import annotations
@@ -22,6 +22,21 @@ LINE = re.compile(
     r"^\s*\d+\.\s+(?P<desc>.+?)\s+(?P<qty>[\d,.]+)\s*(?P<unit>SQ|LF|EA|SF|HR)\b(?P<rest>.*)$",
     re.I | re.M,
 )
+
+OPTIONAL_FIELDS = {
+    "steep_charge",
+    "op",
+    "felt_30",
+    "ice_water",
+    "ice_water_amount",
+    "decking",
+    "decking_amount",
+    "insurance_company",
+    "drip",
+    "drip_amount",
+    "ridge",
+    "ridge_amount",
+}
 
 
 def extract_text(path: Path) -> str:
@@ -56,9 +71,14 @@ def to_float(value):
 
 
 def normalize_address(value: str | None) -> str:
-    if not value:
+    if value is None:
         return ""
-    text = value.lower()
+    try:
+        if pd.isna(value):
+            return ""
+    except TypeError:
+        pass
+    text = str(value).lower()
     text = text.replace("#", " ")
     text = re.sub(r"[.,]", " ", text)
     replacements = {
@@ -73,6 +93,7 @@ def normalize_address(value: str | None) -> str:
         r"\broad\b": "rd",
         r"\bparkway\b": "pkwy",
         r"\bboulevard\b": "blvd",
+        r"\bcrossing\b": "xing",
         r"\bnorth\b": "n",
         r"\bsouth\b": "s",
         r"\beast\b": "e",
@@ -84,8 +105,21 @@ def normalize_address(value: str | None) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def dummy_address(value: str | None) -> bool:
+    norm = normalize_address(value)
+    if not norm:
+        return True
+    if "anywhere" in norm:
+        return True
+    if re.search(r"\b00000\b", norm):
+        return True
+    return False
+
+
 def address_keys(value: str | None) -> set[str]:
     keys = set()
+    if dummy_address(value):
+        return keys
     norm = normalize_address(value)
     if not norm:
         return keys
@@ -93,10 +127,14 @@ def address_keys(value: str | None) -> set[str]:
     match = re.search(r"^(\d+)\s+(.+?)\s+([a-z]{2})\s+(\d{5})$", norm)
     if match:
         number, street, state, zip_code = match.groups()
-        first = street.split()[0] if street.split() else ""
+        tokens = street.split()
+        first = tokens[0] if tokens else ""
+        first_two = " ".join(tokens[:2]) if tokens else ""
         keys.add(f"{number}|{zip_code}")
         keys.add(f"{number}|{first}|{zip_code}")
         keys.add(f"{number}|{first}|{state}")
+        if first_two:
+            keys.add(f"{number}|{first_two}|{zip_code}")
     else:
         bits = norm.split()
         if bits and bits[0].isdigit():
@@ -105,6 +143,24 @@ def address_keys(value: str | None) -> set[str]:
                 keys.add(f"{bits[0]}|{zip_hit.group(1)}")
             keys.add(f"{bits[0]}|{bits[1]}" if len(bits) > 1 else bits[0])
     return {item for item in keys if item}
+
+
+def property_key(value: str | None) -> str:
+    if dummy_address(value):
+        return ""
+    norm = normalize_address(value)
+    match = re.search(r"^(\d+)\s+(.+?)\s+([a-z]{2})\s+(\d{5})$", norm)
+    if match:
+        number, street, _state, zip_code = match.groups()
+        street = re.sub(r"\b(apt|unit|ste)\s*\S+$", "", street).strip()
+        named = " ".join(street.split()[:3])
+        return f"{number}|{named}|{zip_code}"
+    zip_hit = re.search(r"\b(\d{5})\b", norm)
+    bits = norm.split()
+    if bits and bits[0].isdigit() and zip_hit:
+        named = " ".join(bits[1:3])
+        return f"{bits[0]}|{named}|{zip_hit.group(1)}"
+    return norm
 
 
 def xactimate_address(text: str) -> str | None:
@@ -121,7 +177,31 @@ def xactimate_address(text: str) -> str | None:
             if low.startswith("property:"):
                 line = re.sub(r"^Property:\s*", "", line, flags=re.I).strip()
                 low = line.lower()
-            if any(token in low for token in ("e-mail", "email", "home:", "claim", "estimator", "operator", "company:", "business:")):
+            line = re.split(
+                r"\s+(?:Claim Number|Policy Number|Type of Loss|Cellular)\s*:",
+                line,
+                maxsplit=1,
+                flags=re.I,
+            )[0].strip()
+            low = line.lower()
+            if any(
+                low.startswith(token)
+                for token in (
+                    "e-mail",
+                    "email",
+                    "home:",
+                    "claim rep",
+                    "claim number",
+                    "estimator",
+                    "operator",
+                    "company:",
+                    "business:",
+                    "cellular",
+                    "phone",
+                    "fax:",
+                    "insured:",
+                )
+            ):
                 continue
             city_hit = CITY.search(line)
             if city_hit:
@@ -257,167 +337,134 @@ def parse_fields(text: str) -> dict:
 
     ridge_item = first_item(items, "ridge cap") or first_item(items, "hip / ridge")
     drip_item = first_item(items, "drip edge")
+    ice_item = first_item(items, "ice", "water") or first_item(items, "ice & water")
+    deck_item = None
+    for item in items:
+        blob = item["desc"].lower()
+        if "remove" in blob and "shingle" in blob:
+            continue
+        if any(word in blob for word in ("decking", "sheathing", "plywood", " osb")):
+            deck_item = item
+            break
+    felt_30 = first_item(items, "30 lb") or first_item(items, "30#") or first_item(items, "synthetic")
+
+    claim_number = None
+    claim_hit = re.search(r"Claim Number:\s*(\S+)", text, re.I)
+    if claim_hit:
+        claim_number = claim_hit.group(1).strip(".,;")
+
+    estimate_number = None
+    est_hit = re.search(r"^Estimate:\s*([A-Z0-9][A-Z0-9._-]{2,})", text, re.I | re.M)
+    if est_hit:
+        estimate_number = est_hit.group(1).strip()
+
+    date_of_loss = date
+    estimate_date = None
+    for pattern in (
+        r"Date Est\.?\s*Completed:\s*(\d{1,2}/\d{1,2}/\d{2,4})",
+        r"Estimate Date:\s*(\d{1,2}/\d{1,2}/\d{2,4})",
+        r"Date Entered:\s*(\d{1,2}/\d{1,2}/\d{2,4})",
+    ):
+        match = re.search(pattern, text, re.I)
+        if match:
+            estimate_date = match.group(1)
+            break
+
+    insurance_company = None
+    ins_hit = re.search(r"Insurance Company:\s*(.+)", text, re.I)
+    if ins_hit:
+        insurance_company = re.sub(r"\s+", " ", ins_hit.group(1)).strip()
+
+    price_list = None
+    pl_hit = re.search(r"Price List:\s*(\S+)", text, re.I)
+    if pl_hit:
+        price_list = pl_hit.group(1).strip()
 
     return {
         "address": xactimate_address(text),
-        "claim_date": date,
+        "claim_number": claim_number,
+        "estimate_number": estimate_number,
+        "date_of_loss": date_of_loss,
+        "estimate_date": estimate_date,
+        "claim_date": estimate_date or date_of_loss,
         "roof_squares": squares,
         "shingle_type": shingle_type,
         "tear_off": tear["qty"] if tear else None,
         "tear_off_amount": tear["amount"] if tear else None,
         "felt": felt["qty"] if felt else None,
         "felt_amount": felt["amount"] if felt else None,
+        "felt_30": felt_30["qty"] if felt_30 else None,
+        "ice_water": ice_item["qty"] if ice_item else None,
+        "ice_water_amount": ice_item["amount"] if ice_item else None,
         "ridge": ridge_item["qty"] if ridge_item else None,
         "ridge_amount": ridge_item["amount"] if ridge_item else None,
         "drip": drip_item["qty"] if drip_item else None,
         "drip_amount": drip_item["amount"] if drip_item else None,
+        "decking": deck_item["qty"] if deck_item else None,
+        "decking_amount": deck_item["amount"] if deck_item else None,
         "steep_charge": sum_amounts(items, "steep"),
         "op": op,
         "grand_total": grand,
+        "insurance_company": insurance_company,
+        "price_list": price_list,
     }
 
 
-def attach_folder_matches(paired: pd.DataFrame, xa: pd.DataFrame, pair_map_path: Path) -> pd.DataFrame:
-    if not pair_map_path.exists() or xa.empty:
-        return paired
-    folder = pd.read_csv(pair_map_path)
-    xa_by_name = {row["source_file"]: row for row in xa.to_dict("records")}
-    used = set(paired.loc[paired["xact_source_file"].notna(), "xact_source_file"])
-    for idx, row in paired.iterrows():
-        if pd.notna(row["xact_source_file"]):
-            continue
-        hits = folder.loc[folder["ev_source_file"] == row["ev_source_file"], "xact_files"]
-        if hits.empty:
-            continue
-        names = [part for part in str(hits.iloc[0]).split(";") if part]
-        pick = None
-        for name in names:
-            if name in used or name not in xa_by_name:
-                continue
-            candidate = xa_by_name[name]
-            score = (0 if pd.isna(candidate.get("grand_total")) else 2) + (
-                0 if pd.isna(candidate.get("roof_squares")) else 1
-            )
-            if pick is None or score > pick[0]:
-                pick = (score, name, candidate)
-        if pick is None:
-            continue
-        _, name, match = pick
-        used.add(name)
-        paired.at[idx, "match_method"] = "folder"
-        paired.at[idx, "xact_source_file"] = match.get("source_file")
-        paired.at[idx, "claim_date"] = match.get("claim_date")
-        paired.at[idx, "xact_squares"] = match.get("roof_squares")
-        paired.at[idx, "shingle_type"] = match.get("shingle_type")
-        paired.at[idx, "tear_off"] = match.get("tear_off")
-        paired.at[idx, "tear_off_amount"] = match.get("tear_off_amount")
-        paired.at[idx, "felt"] = match.get("felt")
-        paired.at[idx, "felt_amount"] = match.get("felt_amount")
-        paired.at[idx, "ridge"] = match.get("ridge")
-        paired.at[idx, "ridge_amount"] = match.get("ridge_amount")
-        paired.at[idx, "drip"] = match.get("drip")
-        paired.at[idx, "drip_amount"] = match.get("drip_amount")
-        paired.at[idx, "steep_charge"] = match.get("steep_charge")
-        paired.at[idx, "op"] = match.get("op")
-        paired.at[idx, "grand_total"] = match.get("grand_total")
-    return paired
+def ticket_notes(text: str, filename: str = "") -> str:
+    notes: list[str] = []
+    fn = filename.lower()
+    filename_flags = (
+        (r"\bsupplement\b", "supplement"),
+        (r"\boriginal\b", "original"),
+        (r"\binitial\b", "initial"),
+        (r"\binsurance\b", "insurance"),
+        (r"\busaa\b", "usaa"),
+        (r"state\s*farm", "state farm"),
+        (r"\baaa\b", "aaa"),
+        (r"\bmrc\b", "mrc"),
+        (r"myroofco", "mrc"),
+        (r"final\s+draft", "contractor draft"),
+    )
+    for pattern, label in filename_flags:
+        if re.search(pattern, fn, re.I):
+            notes.append(label)
+    if re.search(r"^\s*\d+\.\s+Supplement\b", text, re.I | re.M):
+        notes.append("supplement line")
+    if re.search(r"Insurance Company:", text, re.I):
+        notes.append("carrier header")
+    if re.search(r"Company:\s*My Roof Co", text, re.I):
+        notes.append("contractor header")
+    if re.search(r"Price List:\s*CODE", text, re.I):
+        notes.append("CODE price list")
+    return "; ".join(dict.fromkeys(notes))
 
 
-def pair_frames(ev: pd.DataFrame, xa: pd.DataFrame) -> pd.DataFrame:
-    ev = ev.copy()
-    xa = xa.copy()
-    ev_keys_list = [address_keys(value) if pd.notna(value) else set() for value in ev["address"]]
-    xa_keys_list = [address_keys(value) if pd.notna(value) else set() for value in xa["address"]]
+def _present(value) -> bool:
+    if value is None:
+        return False
+    try:
+        if pd.isna(value):
+            return False
+    except TypeError:
+        pass
+    return True
 
-    used = set()
-    rows = []
-    xa_records = xa.to_dict("records")
-    for ev_i, ev_row in enumerate(ev.to_dict("records")):
-        match = None
-        match_how = None
-        ev_keys = ev_keys_list[ev_i]
-        if ev_keys:
-            best = None
-            for i, xa_row in enumerate(xa_records):
-                if i in used:
-                    continue
-                overlap = ev_keys & xa_keys_list[i]
-                if not overlap:
-                    continue
-                score = (0 if pd.isna(xa_row.get("grand_total")) else 2) + (
-                    0 if pd.isna(xa_row.get("roof_squares")) else 1
-                )
-                if best is None or score > best[0]:
-                    best = (score, i, xa_row, "address")
-            if best:
-                match = best[2]
-                match_how = best[3]
-                used.add(best[1])
-        row = {
-            "address": ev_row.get("address"),
-            "ev_source_file": ev_row.get("source_file"),
-            "ev_squares": ev_row.get("total_squares"),
-            "ev_area_sqft": ev_row.get("total_roof_area_sqft"),
-            "ev_pitch": ev_row.get("predominant_pitch"),
-            "ev_facets": ev_row.get("num_facets"),
-            "ev_ridges_ft": ev_row.get("total_ridges_ft"),
-            "ev_valleys_ft": ev_row.get("total_valleys_ft"),
-            "ev_rakes_ft": ev_row.get("total_rakes_ft"),
-            "ev_eaves_ft": ev_row.get("total_eaves_ft"),
-            "ev_waste_pct": ev_row.get("waste_table_pct"),
-        }
-        if match is None:
-            row.update(
-                {
-                    "match_method": None,
-                    "xact_source_file": None,
-                    "claim_date": None,
-                    "xact_squares": None,
-                    "shingle_type": None,
-                    "tear_off": None,
-                    "tear_off_amount": None,
-                    "felt": None,
-                    "felt_amount": None,
-                    "ridge": None,
-                    "ridge_amount": None,
-                    "drip": None,
-                    "drip_amount": None,
-                    "steep_charge": None,
-                    "op": None,
-                    "grand_total": None,
-                }
-            )
-        else:
-            row.update(
-                {
-                    "match_method": match_how,
-                    "xact_source_file": match.get("source_file"),
-                    "claim_date": match.get("claim_date"),
-                    "xact_squares": match.get("roof_squares"),
-                    "shingle_type": match.get("shingle_type"),
-                    "tear_off": match.get("tear_off"),
-                    "tear_off_amount": match.get("tear_off_amount"),
-                    "felt": match.get("felt"),
-                    "felt_amount": match.get("felt_amount"),
-                    "ridge": match.get("ridge"),
-                    "ridge_amount": match.get("ridge_amount"),
-                    "drip": match.get("drip"),
-                    "drip_amount": match.get("drip_amount"),
-                    "steep_charge": match.get("steep_charge"),
-                    "op": match.get("op"),
-                    "grand_total": match.get("grand_total"),
-                }
-            )
-        rows.append(row)
-    return pd.DataFrame(rows)
+
+def hit_rates(frame: pd.DataFrame) -> dict[str, str]:
+    n = len(frame)
+    rates = {}
+    for col in frame.columns:
+        if col == "source_file":
+            continue
+        filled = frame[col].apply(_present).sum()
+        rates[col] = f"{int(filled)}/{n}"
+    return rates
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_dir", default="./xactimate")
     parser.add_argument("--output_dir", default="./extracted")
-    parser.add_argument("--ev_csv", default="./extracted/eagleview_dataset.csv")
-    parser.add_argument("--pair_map", default="./extracted/xactimate_folder_pairs.csv")
     parser.add_argument("--save_raw_text", action="store_true")
     args = parser.parse_args()
 
@@ -444,10 +491,11 @@ def main():
             (output_dir / f"xact_{path.stem}_raw.txt").write_text(text, encoding="utf-8")
         fields = parse_fields(text)
         fields["source_file"] = path.name
+        fields["ticket_note"] = ticket_notes(text, path.name)
         missing = [
             key
             for key, value in fields.items()
-            if value is None and key not in {"steep_charge", "op"}
+            if value in (None, "") and key not in OPTIONAL_FIELDS and key != "ticket_note"
         ]
         if missing:
             print(f"  Missing: {missing}")
@@ -455,26 +503,10 @@ def main():
 
     xa = pd.DataFrame(rows)
     xa.to_csv(output_dir / "xactimate_dataset.csv", index=False)
-    print(f"\nWrote {len(xa)} Xactimate rows")
-
-    ev_path = Path(args.ev_csv)
-    if not ev_path.exists():
-        print(f"No EagleView CSV at {ev_path}; skip join")
-        return
-    ev = pd.read_csv(ev_path)
-    paired = pair_frames(ev, xa)
-    paired = attach_folder_matches(paired, xa, Path(args.pair_map))
-    out = output_dir / "paired_ev_xactimate.csv"
-    paired.to_csv(out, index=False)
-    matched = paired["xact_source_file"].notna().sum()
-    by_addr = (paired["match_method"] == "address").sum()
-    by_folder = (paired["match_method"] == "folder").sum()
-    print(f"Paired {matched} / {len(paired)} EagleView rows ({by_addr} address, {by_folder} folder)")
-    print(out)
-    if paired["grand_total"].notna().any():
-        print(f"Avg grand total: {paired['grand_total'].mean():.0f}")
-    if paired["xact_squares"].notna().any():
-        print(f"Avg Xactimate squares: {paired['xact_squares'].mean():.1f}")
+    print(f"\nWrote {len(xa)} Xactimate rows to {output_dir / 'xactimate_dataset.csv'}")
+    print("Hit rates:")
+    for key, rate in hit_rates(xa).items():
+        print(f"  {key}: {rate}")
 
 
 if __name__ == "__main__":
