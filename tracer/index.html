@@ -17,6 +17,7 @@
     <div class="actions">
       <a id="earth-link" href="#" target="_blank" rel="noreferrer">Google Earth</a>
       <a href="/api/earth.kml">KML of 49</a>
+      <button type="button" id="btn-draw">Draw facet</button>
       <button type="button" id="btn-guess">Guess outline</button>
       <button type="button" id="btn-save">Save trace</button>
       <button type="button" id="btn-fit">Fit scale</button>
@@ -24,7 +25,10 @@
   </header>
   <main>
     <aside id="list"></aside>
-    <section id="map"></section>
+    <section id="map-wrap">
+      <div id="map"></div>
+      <p id="draw-help" hidden></p>
+    </section>
     <aside id="panel">
       <h2 id="roof-title">Pick a roof</h2>
       <p id="roof-meta"></p>
@@ -38,7 +42,7 @@
         <input id="waste" type="number" step="1" min="0" max="30" />
       </label>
       <div id="compare"></div>
-      <p class="hint">Draw a polygon on the roof. One outline is enough to tune scale. Split into facets when you want pitch mix. Field-verify before you order.</p>
+      <p class="hint">Google satellite, zoomed to rooftop. Draw one outline to tune scale; split facets when you want pitch mix. Field-verify before you order.</p>
     </aside>
   </main>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

@@ -1,4 +1,5 @@
 const PITCHES = ["0/12","1/12","2/12","3/12","4/12","5/12","6/12","7/12","8/12","9/12","10/12","11/12","12/12"];
+const TRACE_ZOOM = 21;
 
 const state = {
   roofs: [],
@@ -16,6 +17,7 @@ const pitchEl = document.getElementById("pitch");
 const scaleEl = document.getElementById("gsd-scale");
 const wasteEl = document.getElementById("waste");
 const earthLink = document.getElementById("earth-link");
+const drawHelp = document.getElementById("draw-help");
 
 PITCHES.forEach((p) => {
   const opt = document.createElement("option");
@@ -24,88 +26,331 @@ PITCHES.forEach((p) => {
   pitchEl.appendChild(opt);
 });
 
-const map = L.map("map", { maxZoom: 22 });
-const satellite = L.tileLayer(
-  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-  { attribution: "Tiles &copy; Esri", maxZoom: 22, maxNativeZoom: 19 }
-);
-satellite.addTo(map);
-map.setView([29.4241, -98.4936], 18);
-
-const drawn = new L.FeatureGroup();
-map.addLayer(drawn);
-const drawControl = new L.Control.Draw({
-  draw: {
-    polygon: { allowIntersection: false, showArea: true },
-    polyline: false,
-    circle: false,
-    rectangle: false,
-    circlemarker: false,
-    marker: false,
-  },
-  edit: { featureGroup: drawn },
-});
-map.addControl(drawControl);
-
-map.on(L.Draw.Event.CREATED, (event) => {
-  const layer = event.layer;
-  layer.feature = { properties: { pitch: pitchEl.value } };
-  drawn.addLayer(layer);
-  bindFacet(layer);
-  preview();
-});
-map.on(L.Draw.Event.EDITED, preview);
-map.on(L.Draw.Event.DELETED, preview);
-
-function bindFacet(layer) {
-  const pitch = (layer.feature && layer.feature.properties.pitch) || pitchEl.value;
-  layer.bindPopup(facetPopup(pitch, layer));
-  layer.on("popupopen", () => {
-    const select = document.getElementById("facet-pitch");
-    if (!select) return;
-    select.onchange = () => {
-      layer.feature.properties.pitch = select.value;
-      preview();
-    };
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.async = true;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("Failed to load map script"));
+    document.head.appendChild(s);
   });
 }
 
-function facetPopup(pitch) {
+function facetPopupHtml(pitch) {
   const opts = PITCHES.map((p) => `<option${p === pitch ? " selected" : ""}>${p}</option>`).join("");
   return `Facet pitch <select id="facet-pitch">${opts}</select>`;
 }
 
-async function api(path, options) {
-  const res = await fetch(path, options);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+function leafletGoogleTiles() {
+  const opts = {
+    subdomains: ["0", "1", "2", "3"],
+    maxZoom: 22,
+    maxNativeZoom: 22,
+    attribution: "&copy; Google",
+  };
+  return {
+    satellite: L.tileLayer("https://mt{s}.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}", opts),
+    hybrid: L.tileLayer("https://mt{s}.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}", opts),
+    esri: L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { attribution: "Tiles &copy; Esri", maxZoom: 22, maxNativeZoom: 19 }
+    ),
+  };
 }
 
-function facetsFromMap() {
-  const facets = [];
-  drawn.eachLayer((layer) => {
-    if (!layer.getLatLngs) return;
-    const ring = layer.getLatLngs()[0] || [];
-    const latlngs = ring.map((pt) => [pt.lat, pt.lng]);
-    if (latlngs.length < 3) return;
-    facets.push({
-      pitch: (layer.feature && layer.feature.properties.pitch) || pitchEl.value,
-      latlngs,
-    });
+function initLeafletMap() {
+  const map = L.map("map", { maxZoom: 22, zoomControl: true });
+  const tiles = leafletGoogleTiles();
+  tiles.satellite.addTo(map);
+  L.control.layers({
+    "Google satellite": tiles.satellite,
+    "Google labels": tiles.hybrid,
+    Esri: tiles.esri,
+  }).addTo(map);
+  map.setView([29.4241, -98.4936], 18);
+  setTimeout(() => map.invalidateSize(), 0);
+  if (drawHelp) {
+    drawHelp.hidden = false;
+    drawHelp.textContent = "Use Draw facet or the polygon tool. Scroll to zoom — Google satellite goes to rooftop.";
+  }
+
+  const drawn = new L.FeatureGroup();
+  map.addLayer(drawn);
+  const drawControl = new L.Control.Draw({
+    draw: {
+      polygon: { allowIntersection: false, showArea: true },
+      polyline: false,
+      circle: false,
+      rectangle: false,
+      circlemarker: false,
+      marker: false,
+    },
+    edit: { featureGroup: drawn },
   });
-  return facets;
+  map.addControl(drawControl);
+
+  let pin = null;
+  map.on(L.Draw.Event.CREATED, (event) => {
+    const layer = event.layer;
+    layer.feature = { properties: { pitch: pitchEl.value } };
+    drawn.addLayer(layer);
+    bindLeafletFacet(layer);
+    preview();
+  });
+  map.on(L.Draw.Event.EDITED, preview);
+  map.on(L.Draw.Event.DELETED, preview);
+
+  function bindLeafletFacet(layer) {
+    const pitch = (layer.feature && layer.feature.properties.pitch) || pitchEl.value;
+    layer.bindPopup(facetPopupHtml(pitch));
+    layer.on("popupopen", () => {
+      const select = document.getElementById("facet-pitch");
+      if (!select) return;
+      select.onchange = () => {
+        layer.feature.properties.pitch = select.value;
+        preview();
+      };
+    });
+  }
+
+  return {
+    kind: "leaflet",
+    setView(lat, lng, zoom) {
+      map.setView([lat, lng], zoom || TRACE_ZOOM);
+      if (pin) map.removeLayer(pin);
+      pin = L.circleMarker([lat, lng], {
+        radius: 5,
+        color: "#ffd166",
+        weight: 2,
+        fillOpacity: 0.2,
+      }).addTo(map);
+    },
+    clear() {
+      drawn.clearLayers();
+    },
+    setPolygons(facets) {
+      drawn.clearLayers();
+      (facets || []).forEach((facet) => {
+        const latlngs = (facet.latlngs || []).map((pt) => [pt[0], pt[1]]);
+        if (latlngs.length < 3) return;
+        const layer = L.polygon(latlngs, { color: "#4da3ff" });
+        layer.feature = { properties: { pitch: facet.pitch || pitchEl.value } };
+        drawn.addLayer(layer);
+        bindLeafletFacet(layer);
+      });
+    },
+    getFacets() {
+      const facets = [];
+      drawn.eachLayer((layer) => {
+        if (!layer.getLatLngs) return;
+        const ring = layer.getLatLngs()[0] || [];
+        const latlngs = ring.map((pt) => [pt.lat, pt.lng]);
+        if (latlngs.length < 3) return;
+        facets.push({
+          pitch: (layer.feature && layer.feature.properties.pitch) || pitchEl.value,
+          latlngs,
+        });
+      });
+      return facets;
+    },
+    startDraw() {
+      new L.Draw.Polygon(map, drawControl.options.draw.polygon).enable();
+    },
+  };
+}
+
+function initGoogleMap() {
+  const googleMap = new google.maps.Map(document.getElementById("map"), {
+    center: { lat: 29.4241, lng: -98.4936 },
+    zoom: 18,
+    mapTypeId: "satellite",
+    tilt: 0,
+    heading: 0,
+    maxZoom: 22,
+    minZoom: 14,
+    disableDoubleClickZoom: true,
+    clickableIcons: false,
+    streetViewControl: false,
+    fullscreenControl: true,
+    rotateControl: false,
+    mapTypeControl: true,
+    mapTypeControlOptions: {
+      mapTypeIds: ["satellite", "hybrid"],
+    },
+    gestureHandling: "greedy",
+  });
+  googleMap.setTilt(0);
+
+  const polygons = [];
+  const info = new google.maps.InfoWindow();
+  let pin = null;
+  const draft = { path: [], line: null };
+
+  function stylePoly() {
+    return {
+      strokeColor: "#4da3ff",
+      strokeWeight: 2,
+      fillColor: "#4da3ff",
+      fillOpacity: 0.22,
+      editable: true,
+      clickable: true,
+    };
+  }
+
+  function bindGoogleFacet(polygon) {
+    polygon.addListener("click", () => {
+      const pitch = polygon.facetPitch || pitchEl.value;
+      info.setContent(facetPopupHtml(pitch));
+      info.setPosition(polygon.getPath().getAt(0));
+      info.open(googleMap);
+      google.maps.event.addListenerOnce(info, "domready", () => {
+        const select = document.getElementById("facet-pitch");
+        if (!select) return;
+        select.onchange = () => {
+          polygon.facetPitch = select.value;
+          preview();
+        };
+      });
+    });
+    const path = polygon.getPath();
+    path.addListener("set_at", preview);
+    path.addListener("insert_at", preview);
+    path.addListener("remove_at", preview);
+  }
+
+  function redrawDraft() {
+    if (draft.line) draft.line.setMap(null);
+    if (draft.path.length < 1) return;
+    draft.line = new google.maps.Polyline({
+      path: draft.path,
+      strokeColor: "#ffd166",
+      strokeWeight: 2,
+      map: googleMap,
+      clickable: false,
+    });
+  }
+
+  function closeDraft() {
+    if (draft.path.length < 3) {
+      statusEl.textContent = "Need at least 3 corners";
+      return;
+    }
+    const polygon = new google.maps.Polygon({
+      paths: draft.path,
+      map: googleMap,
+      ...stylePoly(),
+    });
+    polygon.facetPitch = pitchEl.value;
+    polygons.push(polygon);
+    bindGoogleFacet(polygon);
+    draft.path = [];
+    if (draft.line) {
+      draft.line.setMap(null);
+      draft.line = null;
+    }
+    preview();
+    statusEl.textContent = "Facet added — click the next roof plane, or Save";
+  }
+
+  googleMap.addListener("click", (event) => {
+    draft.path.push(event.latLng);
+    redrawDraft();
+    statusEl.textContent = `${draft.path.length} points — Enter or double-click to close`;
+  });
+  googleMap.addListener("dblclick", (event) => {
+    event.stop();
+    closeDraft();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.target.tagName === "INPUT" || event.target.tagName === "SELECT") return;
+    if (event.key === "Enter" && draft.path.length >= 3) {
+      event.preventDefault();
+      closeDraft();
+    }
+    if (event.key === "Backspace" && draft.path.length) {
+      event.preventDefault();
+      draft.path.pop();
+      redrawDraft();
+    }
+    if (event.key === "Escape") {
+      draft.path = [];
+      if (draft.line) {
+        draft.line.setMap(null);
+        draft.line = null;
+      }
+    }
+  });
+
+  if (drawHelp) {
+    drawHelp.hidden = false;
+    drawHelp.textContent = "Click roof corners · Enter or double-click to close · Backspace undoes a point";
+  }
+
+  return {
+    kind: "google",
+    setView(lat, lng, zoom) {
+      googleMap.setOptions({ tilt: 0, heading: 0 });
+      googleMap.setCenter({ lat, lng });
+      googleMap.setZoom(zoom || TRACE_ZOOM);
+      if (pin) pin.setMap(null);
+      pin = new google.maps.Marker({
+        position: { lat, lng },
+        map: googleMap,
+        title: "Geocoded location",
+        opacity: 0.7,
+      });
+    },
+    clear() {
+      polygons.splice(0).forEach((poly) => poly.setMap(null));
+      draft.path = [];
+      if (draft.line) {
+        draft.line.setMap(null);
+        draft.line = null;
+      }
+      info.close();
+    },
+    setPolygons(facets) {
+      this.clear();
+      (facets || []).forEach((facet) => {
+        const path = (facet.latlngs || []).map((pt) => ({ lat: pt[0], lng: pt[1] }));
+        if (path.length < 3) return;
+        const polygon = new google.maps.Polygon({
+          paths: path,
+          map: googleMap,
+          ...stylePoly(),
+        });
+        polygon.facetPitch = facet.pitch || pitchEl.value;
+        polygons.push(polygon);
+        bindGoogleFacet(polygon);
+      });
+    },
+    getFacets() {
+      return polygons.map((polygon) => {
+        const latlngs = polygon.getPath().getArray().map((pt) => [pt.lat(), pt.lng()]);
+        return { pitch: polygon.facetPitch || pitchEl.value, latlngs };
+      }).filter((facet) => facet.latlngs.length >= 3);
+    },
+    startDraw() {
+      draft.path = [];
+      if (draft.line) {
+        draft.line.setMap(null);
+        draft.line = null;
+      }
+      statusEl.textContent = "Click the roof corners, then Enter to close";
+    },
+  };
+}
+
+let view = null;
+
+function facetsFromMap() {
+  return view ? view.getFacets() : [];
 }
 
 function setPolygons(facets) {
-  drawn.clearLayers();
-  (facets || []).forEach((facet) => {
-    const latlngs = (facet.latlngs || []).map((pt) => [pt[0], pt[1]]);
-    if (latlngs.length < 3) return;
-    const layer = L.polygon(latlngs, { color: "#4da3ff" });
-    layer.feature = { properties: { pitch: facet.pitch || pitchEl.value } };
-    drawn.addLayer(layer);
-    bindFacet(layer);
-  });
+  if (view) view.setPolygons(facets);
 }
 
 function fmt(n, digits = 1) {
@@ -150,6 +395,12 @@ function renderCompare(trace) {
   `;
 }
 
+async function api(path, options) {
+  const res = await fetch(path, options);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 async function preview() {
   if (!state.current) return;
   const payload = {
@@ -168,7 +419,9 @@ async function preview() {
     renderCompare(trace);
     renderList();
     const err = trace.compare && trace.compare.area_error_pct;
-    statusEl.textContent = err === null || err === undefined ? "Trace started" : `Area error ${fmt(err, 1)}% vs EagleView`;
+    if (facetsFromMap().length) {
+      statusEl.textContent = err === null || err === undefined ? "Trace started" : `Area error ${fmt(err, 1)}% vs EagleView`;
+    }
   } catch (err) {
     statusEl.textContent = String(err);
   }
@@ -184,14 +437,14 @@ async function selectRoof(id) {
   earthLink.href = `https://earth.google.com/web/search/${encodeURIComponent(roof.address)}`;
   renderList();
   statusEl.textContent = "Locating…";
-  drawn.clearLayers();
+  if (view) view.clear();
   try {
     const loc = await api("/api/locate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ address: roof.address }),
     });
-    map.setView([loc.lat, loc.lng], 20);
+    view.setView(loc.lat, loc.lng, TRACE_ZOOM);
     roof.lat = loc.lat;
     roof.lng = loc.lng;
   } catch (err) {
@@ -204,7 +457,7 @@ async function selectRoof(id) {
       state.traces[roof.id] = trace;
       setPolygons(trace.facets);
       renderCompare(trace);
-      statusEl.textContent = "Loaded saved trace";
+      statusEl.textContent = "Loaded saved trace — zoom in if you need more detail";
       renderList();
       return;
     }
@@ -212,7 +465,9 @@ async function selectRoof(id) {
     // no saved trace
   }
   renderCompare(null);
-  statusEl.textContent = "Draw the roof or Guess outline";
+  statusEl.textContent = view && view.kind === "google"
+    ? "Click the roof corners, Enter to close"
+    : "Draw the roof (polygon tool, top-right) or Guess outline";
 }
 
 async function guessOutline() {
@@ -279,6 +534,7 @@ wasteEl.addEventListener("change", preview);
 document.getElementById("btn-guess").onclick = guessOutline;
 document.getElementById("btn-save").onclick = saveTrace;
 document.getElementById("btn-fit").onclick = fitScale;
+document.getElementById("btn-draw").onclick = () => view && view.startDraw();
 document.addEventListener("keydown", (event) => {
   if (event.target.tagName === "INPUT" || event.target.tagName === "SELECT") return;
   const idx = state.roofs.findIndex((row) => state.current && row.id === state.current.id);
@@ -296,14 +552,29 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-api("/api/roofs").then((data) => {
+async function boot() {
+  const cfg = await api("/api/config").catch(() => ({}));
+  if (cfg.googleMapsKey) {
+    try {
+      await loadScript(`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(cfg.googleMapsKey)}&v=weekly`);
+      view = initGoogleMap();
+    } catch (err) {
+      view = initLeafletMap();
+    }
+  } else {
+    view = initLeafletMap();
+  }
+
+  const data = await api("/api/roofs");
   state.roofs = data.roofs || [];
   state.tune = data.tune || state.tune;
   scaleEl.value = state.tune.gsd_scale || 1;
   wasteEl.value = state.tune.waste_pct || 12;
-  statusEl.textContent = `${state.roofs.length} EagleView roofs`;
+  statusEl.textContent = `${state.roofs.length} EagleView roofs · Google satellite`;
   renderList();
   if (state.roofs[0]) selectRoof(state.roofs[0].id);
-}).catch((err) => {
+}
+
+boot().catch((err) => {
   statusEl.textContent = String(err);
 });

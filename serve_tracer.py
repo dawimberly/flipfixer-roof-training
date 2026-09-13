@@ -34,6 +34,27 @@ PORT = 8765
 USER_AGENT = "FlipFixerRoofTraining/1.0 (jon@theflipfixer.com)"
 
 
+def load_dotenv(path: Path | None = None) -> None:
+    env_path = path or (ROOT / ".env")
+    if not env_path.exists():
+        return
+    for raw in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+def google_maps_key() -> str:
+    return (
+        os.environ.get("GOOGLE_MAPS_API_KEY") or os.environ.get("MAPS_API_KEY") or ""
+    ).strip()
+
+
 def roof_id(source_file: str) -> str:
     stem = Path(source_file).stem
     return re.sub(r"[^A-Za-z0-9._-]+", "_", stem)
@@ -98,10 +119,30 @@ def http_json(url: str, data: bytes | None = None, headers: dict | None = None, 
         return json.loads(resp.read().decode("utf-8"))
 
 
-def geocode(address: str) -> dict | None:
-    cache = load_cache()
-    if address in cache:
-        return cache[address]
+def geocode_google(address: str, key: str) -> dict | None:
+    query = urllib.parse.urlencode({"address": address, "key": key})
+    url = f"https://maps.googleapis.com/maps/api/geocode/json?{query}"
+    try:
+        payload = http_json(url)
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        return None
+    if payload.get("status") != "OK" or not payload.get("results"):
+        return None
+    pick = payload["results"][0]
+    for row in payload["results"]:
+        if (row.get("geometry") or {}).get("location_type") == "ROOFTOP":
+            pick = row
+            break
+    loc = pick["geometry"]["location"]
+    return {
+        "lat": float(loc["lat"]),
+        "lng": float(loc["lng"]),
+        "label": pick.get("formatted_address"),
+        "source": "google",
+    }
+
+
+def geocode_nominatim(address: str) -> dict | None:
     query = urllib.parse.urlencode({"q": address, "format": "json", "limit": 1})
     url = f"https://nominatim.openstreetmap.org/search?{query}"
     try:
@@ -109,13 +150,29 @@ def geocode(address: str) -> dict | None:
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
         return None
     if not hits:
-        cache[address] = None
-        save_cache(cache)
         return None
-    hit = {"lat": float(hits[0]["lat"]), "lng": float(hits[0]["lon"]), "label": hits[0].get("display_name")}
+    return {
+        "lat": float(hits[0]["lat"]),
+        "lng": float(hits[0]["lon"]),
+        "label": hits[0].get("display_name"),
+        "source": "nominatim",
+    }
+
+
+def geocode(address: str) -> dict | None:
+    cache = load_cache()
+    cached = cache.get(address)
+    key = google_maps_key()
+    if cached and cached.get("lat") is not None:
+        if not key or cached.get("source") == "google":
+            return cached
+    hit = geocode_google(address, key) if key else geocode_nominatim(address)
+    if hit is None and key:
+        hit = geocode_nominatim(address)
     cache[address] = hit
     save_cache(cache)
-    time.sleep(1.05)
+    if hit and hit.get("source") == "nominatim":
+        time.sleep(1.05)
     return hit
 
 
@@ -241,9 +298,19 @@ class Handler(SimpleHTTPRequestHandler):
     def log_message(self, fmt: str, *args) -> None:
         print(f"[tracer] {self.address_string()} {fmt % args}")
 
+    def end_headers(self):
+        path = urllib.parse.urlparse(self.path).path
+        if path.endswith((".js", ".css", ".html")):
+            self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+        if path == "/api/config":
+            key = google_maps_key()
+            json_response(self, {"googleMapsKey": key, "hasGoogleMaps": bool(key)})
+            return
         if path == "/api/roofs":
             json_response(self, {"roofs": load_roofs(), "tune": load_tune()})
             return
@@ -354,12 +421,17 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 def main() -> None:
+    load_dotenv()
     TRACER_DIR.mkdir(parents=True, exist_ok=True)
     TRACES_DIR.mkdir(parents=True, exist_ok=True)
     EXTRACTED.mkdir(parents=True, exist_ok=True)
     roofs = load_roofs()
     print(f"Tracer: {len(roofs)} EagleView roofs")
     print(f"http://{HOST}:{PORT}")
+    if google_maps_key():
+        print("Google Maps: official satellite (API key loaded)")
+    else:
+        print("Google Maps: satellite tiles (add GOOGLE_MAPS_API_KEY to .env for the official map)")
     print("Draw on satellite, or Guess outline, then Save. Fit scale when you have a handful.")
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     try:
