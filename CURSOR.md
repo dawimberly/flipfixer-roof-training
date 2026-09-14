@@ -8,7 +8,7 @@ One roof can have several Xactimates. That is normal. Insurance writes coverage.
 
 ## EagleView
 
-1. Search Desktop / Downloads / Documents / OneDrive for EagleView / roof-measurement PDFs.
+1. Search Desktop / Downloads / Documents / OneDrive **and any other folders named like Flip Fixer / flpfx** for EagleView / roof-measurement PDFs. Do not copy those website repos into this lab. Only pull reports.
 2. Copy into `reports/`. Do not delete originals. Do not git-add the PDFs.
 3. Run:
 

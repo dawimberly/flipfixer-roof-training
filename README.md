@@ -6,6 +6,19 @@ The reports stay on your machine. Git ignores `reports/`, `xactimate/`, `*.pdf`,
 
 Repo: https://github.com/dawimberly/flipfixer-roof-training
 
+This is the consolidated **roof lab**. The public Flip Fixer site stays in its own repo (`flpfxr`). Extra Desktop copies named `flpfx`, `Flip Fixer`, and similar get scanned here for EagleView / Xactimate files — they are not a second website.
+
+## Where the other Flip Fixer copies live
+
+| Copy | What it is |
+| --- | --- |
+| [dawimberly/flpfxr](https://github.com/dawimberly/flpfxr) | Live marketing site + employee estimator on [theflipfixer.com](https://theflipfixer.com). Roof tracer still belongs behind that login, not as a fourth Vercel app. |
+| [dawimberly/flipfixer](https://github.com/dawimberly/flipfixer) | Older Nuxt marketing site. Vercel project is gone. Do not revive it. |
+| [westwick/flipfixer](https://github.com/westwick/flipfixer) | Earlier public copy of the Nuxt site. |
+| This repo (`flipfixer-roof-training`) | EagleView + Xactimate ingest, pairing, and the satellite tracer used to train `/exterior`. |
+
+Local folders on the shop machine (`flpfx`, `FLP Fixer`, `The Flip Fixer`, …) are ingest roots. `collect_reports.py` and `collect_xactimate.py` pick them up automatically when they sit on Desktop / Downloads / Documents / OneDrive.
+
 ## What Cursor should do
 
 Open this repo. Paste `CURSOR.md` as the task. It scans Desktop / Downloads / Documents, copies matching PDFs, then extracts and pairs.

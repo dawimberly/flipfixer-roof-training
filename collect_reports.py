@@ -14,6 +14,8 @@ import os
 import shutil
 from pathlib import Path
 
+from flip_folders import ingest_roots
+
 NAME_HINTS = (
     "eagleview",
     "eagle view",
@@ -26,16 +28,11 @@ NAME_HINTS = (
 
 
 def default_roots() -> list[Path]:
-    home = Path.home()
-    candidates = [
-        home / "Desktop",
-        home / "Downloads",
-        home / "Documents",
-        home / "OneDrive" / "Desktop",
-        home / "OneDrive" / "Downloads",
-        Path.cwd() / "reports",
-    ]
-    return [path for path in candidates if path.exists()]
+    roots = ingest_roots()
+    reports = Path.cwd() / "reports"
+    if reports.exists() and reports not in roots:
+        roots.append(reports)
+    return roots
 
 
 def looks_like_report(path: Path) -> bool:

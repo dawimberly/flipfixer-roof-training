@@ -16,6 +16,8 @@ from pathlib import Path
 import pandas as pd
 import pdfplumber
 
+from flip_folders import ingest_roots
+
 XACT_BYTES = (b"Xactimate", b"xactimate", b"Xactware", b"XACTWARE")
 SKIP_DIRS = {
     ".venv",
@@ -64,16 +66,7 @@ def looks_xactimate(path: Path) -> bool:
 
 
 def default_roots() -> list[Path]:
-    home = Path.home()
-    candidates = [
-        home / "Desktop",
-        home / "Downloads",
-        home / "Documents",
-        home / "OneDrive" / "Desktop",
-        home / "OneDrive" / "Documents",
-        home / "OneDrive",
-    ]
-    return [path for path in candidates if path.exists()]
+    return ingest_roots()
 
 
 def collect(roots: list[Path], reports_dir: Path, dest: Path) -> pd.DataFrame:
