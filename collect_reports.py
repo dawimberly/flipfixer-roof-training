@@ -10,39 +10,23 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import os
 import shutil
 from pathlib import Path
 
-NAME_HINTS = (
-    "eagleview",
-    "eagle view",
-    "eagle-view",
-    "ev report",
-    "roof report",
-    "roof measurement",
-    "measurement report",
-)
+from file_kinds import classify_document, skip_path
+from flip_folders import ingest_roots
 
 
 def default_roots() -> list[Path]:
-    home = Path.home()
-    candidates = [
-        home / "Desktop",
-        home / "Downloads",
-        home / "Documents",
-        home / "OneDrive" / "Desktop",
-        home / "OneDrive" / "Downloads",
-        Path.cwd() / "reports",
-    ]
-    return [path for path in candidates if path.exists()]
+    roots = ingest_roots()
+    reports = Path.cwd() / "reports"
+    if reports.exists() and reports not in roots:
+        roots.append(reports)
+    return roots
 
 
 def looks_like_report(path: Path) -> bool:
-    name = path.name.lower()
-    if not name.endswith(".pdf"):
-        return False
-    return any(hint in name for hint in NAME_HINTS)
+    return classify_document(path) == "eagleview"
 
 
 def file_key(path: Path) -> str:
@@ -61,8 +45,15 @@ def collect(roots: list[Path], dest: Path) -> list[Path]:
             print(f"Skip missing folder: {root}")
             continue
         print(f"Scanning {root}")
+        dest_resolved = dest.resolve()
         for path in root.rglob("*.pdf"):
-            if not path.is_file():
+            if not path.is_file() or skip_path(path):
+                continue
+            try:
+                resolved = path.resolve()
+            except OSError:
+                continue
+            if dest_resolved == resolved.parent or dest_resolved in resolved.parents:
                 continue
             if not looks_like_report(path):
                 continue
