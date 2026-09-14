@@ -1,6 +1,6 @@
 # Cursor — ingest EagleView and Xactimate from this machine
 
-You are working in `dawimberly/flipfixer-roof-training` on the current branch. Do not start a new architecture. Extend what is here.
+You are working in `dawimberly/flipfixer-roof-training`, the shop’s Flip Fixer home. Site + estimator live in `apps/site`. Roof ingest stays at the repo root. Do not start a new architecture. Do not invent a second pipeline. Extend what is here.
 
 ## Business rule
 

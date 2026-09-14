@@ -1,31 +1,26 @@
-# Flip Fixer — roof training lab
+# The Flip Fixer
 
-Private kit for turning a pile of EagleView PDFs and the Xactimates that sit with them into a number set The Flip Fixer can learn from.
+Private home for the shop: live site + estimator under `apps/site`, roof training lab at the repo root.
 
-The reports stay on your machine. Git ignores `reports/`, `xactimate/`, `*.pdf`, and `*.esx`. We keep the measurements and the bid spread — not a blended “mid.”
+**Repo:** https://github.com/dawimberly/flipfixer-roof-training  
+**Live site:** https://theflipfixer.com (still deploys from `dawimberly/flpfxr` on Vercel until you point that project here)
 
-Repo: https://github.com/dawimberly/flipfixer-roof-training
+EagleView PDFs, Xactimates, keys, recovery codes, HEIC/zip piles, and friend-pool estimates stay **off GitHub**. Do not delete those local originals.
 
-This is the consolidated **roof lab**. The public Flip Fixer site stays in its own repo (`flpfxr`). Extra Desktop copies named `flpfx`, `Flip Fixer`, and similar get scanned here for EagleView / Xactimate files — they are not a second website.
+## Layout
 
-## Where the other Flip Fixer copies live
-
-Usable shop files (ads packs, schedules, how-to docs, brand files, job notes, cabinetry PDFs, August 17–23 posting set) live in one private repo: [dawimberly/flpfxr-archive](https://github.com/dawimberly/flpfxr-archive). Do not copy that archive into this lab. Do not treat ads or cabinetry PDFs as EagleViews.
-
-| Copy | What it is |
+| Path | What it is |
 | --- | --- |
-| [dawimberly/flpfxr](https://github.com/dawimberly/flpfxr) | Live marketing site on [theflipfixer.com](https://theflipfixer.com). The local-only call-button work is on branch `cursor/fix-ios-android-call-buttons`. |
-| [dawimberly/the-flip-fixer](https://github.com/dawimberly/the-flip-fixer) | Estimator. Roof tracer still belongs behind employee login, not as a fourth Vercel app. |
-| [dawimberly/flipfixer-estimator](https://github.com/dawimberly/flipfixer-estimator) | Estimator copy already on GitHub. |
-| [dawimberly/flipfixer](https://github.com/dawimberly/flipfixer) | Older Nuxt marketing site. Do not revive it. |
-| [dawimberly/flpfxr-archive](https://github.com/dawimberly/flpfxr-archive) | Private file cabinet: ads, schedules, how-tos, brand, job notes, cabinetry PDFs, Aug 17–23 posts. |
-| This repo (`flipfixer-roof-training`) | EagleView + Xactimate ingest, pairing, and the satellite tracer used to train `/exterior`. |
+| `apps/site` | Snapshot of [flpfxr](https://github.com/dawimberly/flpfxr) — marketing site + employee estimator. iOS/Android tap-to-call is on `cursor/fix-ios-android-call-buttons` in that repo. |
+| Root (`collect_*.py`, `tracer/`, `retrain.py`) | Roof lab: EagleView + Xactimate ingest, pairing, satellite tracer. |
+| [flpfxr-archive](https://github.com/dawimberly/flpfxr-archive) | Shop file cabinet (ads, how-tos, brand, job notes, cabinetry PDFs). Not copied here. |
+| [flipfixer](https://github.com/dawimberly/flipfixer) | Older Nuxt site. Not revived. |
 
-EagleView PDFs, Xactimates, keys, recovery codes, login backups, raw HEIC/zip piles, duplicate photo folders, and friend-pool estimates stay **off GitHub**. Do not delete those local originals. Collectors still read them from the shop PC (`reports/` / `xactimate/` are gitignored because addresses live in those files).
+This cloud token still cannot clone `flpfxr-archive`, `the-flip-fixer`, or `flipfixer-estimator`. `apps/site` is the estimator that was already inside `flpfxr`.
 
-## What Cursor should do
+## Roof lab
 
-Open this repo. Paste `CURSOR.md` as the task. It scans Desktop / Downloads / Documents, copies matching PDFs, then extracts and pairs.
+Open this repo. Paste `CURSOR.md` as the task. It scans Desktop / Downloads / Documents, copies matching PDFs, then extracts and pairs. Do not treat archive ads or cabinetry PDFs as EagleViews.
 
 Or do it yourself:
 
@@ -60,7 +55,16 @@ python collect_reports.py --roots "C:/Users/YOU/Desktop" "C:/Users/YOU/Downloads
 
 Then, if collect skipped them because the name was bland, copy the PDFs into `reports/` by hand and run extract anyway.
 
-## Business rule
+## Site + estimator
+
+```bash
+cd apps/site
+cp .env.example .env   # local secrets only; never commit .env
+npm install
+npm run dev            # http://localhost:8080
+```
+
+Tap-to-call for iPhone/Android PWA is on `flpfxr` branch `cursor/fix-ios-android-call-buttons` (commit `e8bf92b`). Production Vercel still tracks `flpfxr` main.
 
 One roof can have several Xactimates. Insurance writes coverage. The house needs code for that zip. The high ticket is usually the code ticket, not the carrier ticket. Never average them. The software should argue like that.
 
@@ -81,7 +85,8 @@ Use the averages (waste %, pitch mix, facet count) as defaults on `/exterior` in
 
 ## Rules
 
-- Do not commit PDFs, ESX, raw text with names, or `.env`.
+- Do not commit EagleView/Xactimate PDFs, ESX, raw text with names, or `.env`.
+- Site brand assets under `apps/site/public` are already in git.
 - Do not store EagleView or Xactimate branded layout.
 - Do not invent a recommended mid.
 - Field-verify before you order materials. This set trains a preliminary number, not a lumber ticket.

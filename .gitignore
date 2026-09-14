@@ -5,23 +5,16 @@ __pycache__/
 .DS_Store
 .env
 .python-version
+node_modules/
 
-# Never commit the reports. Addresses live in those PDFs.
+# Job reports and traces. Addresses live in those files.
+# Do not ignore apps/site public images or brand PDFs.
 reports/
 xactimate/
 extracted/
 ingest-log.txt
-*.pdf
-*.esx
-*.esz
+traces/
 photos/
 projects/
-*.jpg
-*.jpeg
-*.png
-*.webp
-*.heic
-*.heif
-*.tif
-*.tiff
-*.avif
+*.esx
+*.esz
