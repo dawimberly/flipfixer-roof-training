@@ -4,7 +4,11 @@ __pycache__/
 *.pyc
 .DS_Store
 .env
+.env.local
 .python-version
+node_modules/
+apps/**/node_modules/
+apps/**/dist/
 
 # Never commit the reports. Addresses live in those PDFs.
 reports/

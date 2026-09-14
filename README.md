@@ -6,6 +6,8 @@ The reports stay on your machine. Git ignores `reports/`, `xactimate/`, `*.pdf`,
 
 Repo: https://github.com/dawimberly/flipfixer-roof-training
 
+See `SOURCES.md` for the estimator (`apps/site`), legacy marketing site, Vercel URLs, and what still lives only on the shop PC.
+
 ## What Cursor should do
 
 Open this repo. Paste `CURSOR.md` as the task. It scans Desktop / Downloads / Documents, copies matching PDFs, then extracts and pairs.
