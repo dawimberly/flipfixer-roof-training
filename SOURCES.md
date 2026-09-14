@@ -8,6 +8,7 @@ This branch brings the **employee estimator**, **roof measurement lab**, and **s
 | --- | --- | --- |
 | `apps/site/` | [dawimberly/flpfxr](https://github.com/dawimberly/flpfxr) (live) | Marketing site + employee login + kitchen/bath estimator. Deployed on Vercel as project `flpfxr` (Dirty INK) → [theflipfixer.com](https://theflipfixer.com) |
 | `apps/legacy-flipfixer/` | [dawimberly/flipfixer](https://github.com/dawimberly/flipfixer) | Older Nuxt marketing site. `https://flipfixer.vercel.app` is dead |
+| `apps/legacy-westwick-flipfixer/` | [westwick/flipfixer](https://github.com/westwick/flipfixer) | Earlier public Nuxt copy (large gallery originals) |
 | Repo root + `tracer/` | this repo, branch `cursor/ev-xactimate-satellite-tracer` | EagleView / Xactimate extractors, pairing, `serve_tracer.py` satellite roof tracer |
 | `flip_folders.py`, `retrain.py`, `bundle_projects.py`, … | consolidation branch | Folder discovery and retrain helpers |
 
@@ -45,12 +46,7 @@ Cloud Agents cannot see the shop PC. These stay local until you copy or grant re
 | [dawimberly/flpfxr-archive](https://github.com/dawimberly/flpfxr-archive) | Shop notes/ads; GitHub token gets 404 |
 | MRC Gmail `dan.myroofco@gmail.com` | Attachments not readable here |
 
-Extra clones on this machine (not in git, large or duplicate):
-
-- `/home/ubuntu/flipfixer-sources/flpfxr`
-- `/home/ubuntu/flipfixer-sources/flipfixer`
-- `/home/ubuntu/flipfixer-sources/westwick-flipfixer` ([westwick/flipfixer](https://github.com/westwick/flipfixer), ~128MB image assets)
-- `/home/ubuntu/flipfixer-sources/roof-training-tracer` (git worktree of the tracer branch)
+Extra clones also live at `/home/ubuntu/flipfixer-sources/` (`flpfxr`, `flipfixer`, `westwick-flipfixer`, `roof-training-tracer` worktree).
 
 ## Run locally in this environment
 
