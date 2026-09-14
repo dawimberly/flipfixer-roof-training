@@ -17,7 +17,7 @@ This is the consolidated **roof lab**. The public Flip Fixer site stays in its o
 | [westwick/flipfixer](https://github.com/westwick/flipfixer) | Earlier public copy of the Nuxt site. |
 | This repo (`flipfixer-roof-training`) | EagleView + Xactimate ingest, pairing, and the satellite tracer used to train `/exterior`. |
 
-Local folders on the shop machine (`flpfx`, `FLP Fixer`, `The Flip Fixer`, …) are ingest roots. `collect_reports.py` and `collect_xactimate.py` pick them up automatically when they sit on Desktop / Downloads / Documents / OneDrive.
+Local folders on the shop machine (`flpfx`, `FLP Fixer`, `The Flip Fixer`, …) are ingest roots. Collectors pick up EagleViews, Xactimates / insurance estimates with your shop name, and job photos, then bundle them by **address or job name**.
 
 ## What Cursor should do
 
@@ -32,10 +32,12 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python collect_reports.py
-python extract_eagleview_data.py --save_raw_text
 python collect_xactimate.py
+python collect_photos.py
+python extract_eagleview_data.py --save_raw_text
 python extract_xactimate_data.py --save_raw_text
 python pair_ev_xactimate.py
+python bundle_projects.py
 ```
 
 Keep retraining. Drop more PDFs and run the same loop:
@@ -44,7 +46,7 @@ Keep retraining. Drop more PDFs and run the same loop:
 python retrain.py
 ```
 
-That collect / extract / pairs again, then writes `roof_defaults.json` (waste %, pitch mix, facet count, GSD scale from traces). Bid files still keep carrier vs code as a spread — they are never averaged into a mid. Run it every time a new EagleView or Xactimate shows up. Use `--skip-collect` if the files are already in `reports/` / `xactimate/`.
+That collect / extract / pairs / bundles again, then writes `roof_defaults.json` (waste %, pitch mix, facet count, GSD scale, project photo counts). Bid files still keep carrier vs code as a spread — they are never averaged into a mid. Photos stay on disk; git only keeps the index.
 
 If the filenames are just `Report.pdf` and `Scan (3).pdf`, point Cursor at the folders you know:
 
@@ -68,6 +70,7 @@ One roof can have several Xactimates. Insurance writes coverage. The house needs
 | `extracted/paired_ev_xactimate.csv` | One row per XM, joined to its EagleView |
 | `extracted/roof_bid_spread.csv` | One row per property: carrier vs code, no mid |
 | `extracted/*_raw.txt` | Debug dump if a regex misses |
+| `extracted/project_bundles.csv` | One job: EagleView + tickets + photo counts, keyed by address or name |
 | `roof_defaults.json` | Numbers-only snapshot for `/exterior` (safe to commit; no addresses) |
 
 Use the averages (waste %, pitch mix, facet count) as defaults on `/exterior` in `the-flip-fixer`. Use the spread when you talk price. Field-verify before you order.

@@ -9,28 +9,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import re
 import shutil
 from pathlib import Path
 
 import pandas as pd
-import pdfplumber
 
+from file_kinds import classify_document, skip_path
 from flip_folders import ingest_roots
-
-XACT_BYTES = (b"Xactimate", b"xactimate", b"Xactware", b"XACTWARE")
-SKIP_DIRS = {
-    ".venv",
-    "venv",
-    "node_modules",
-    ".git",
-    "site-packages",
-    "__pycache__",
-    "AppData",
-    ".cache",
-    ".cursor",
-    "flipfixer-roof-training",
-}
 
 
 def file_hash(path: Path) -> str:
@@ -41,28 +26,8 @@ def file_hash(path: Path) -> str:
     return digest.hexdigest()
 
 
-def skip_path(path: Path) -> bool:
-    return any(part in SKIP_DIRS for part in path.parts)
-
-
 def looks_xactimate(path: Path) -> bool:
-    try:
-        with path.open("rb") as handle:
-            data = handle.read(2_500_000)
-    except OSError:
-        return False
-    if any(marker in data for marker in XACT_BYTES):
-        return True
-    if path.suffix.lower() in {".esx", ".esz"}:
-        return True
-    try:
-        with pdfplumber.open(path) as pdf:
-            text = (pdf.pages[0].extract_text() or "")[:2500]
-    except Exception:
-        return False
-    return bool(re.search(r"Price List\s*:", text, re.I)) and bool(
-        re.search(r"Property\s*:", text, re.I)
-    )
+    return classify_document(path) in {"xactimate", "insurance"}
 
 
 def default_roots() -> list[Path]:
@@ -183,6 +148,28 @@ def collect(roots: list[Path], reports_dir: Path, dest: Path) -> pd.DataFrame:
                     # only attach parent-level xact if this EV is the only one from that parent
                     pass
         pairs.append({"ev_source_file": ev_name, "xact_files": ";".join(names), "folder": str(folder)})
+
+    dest_resolved = dest.resolve()
+    reports_resolved = reports_dir.resolve()
+    for root in roots:
+        if not root.exists():
+            continue
+        print(f"Scanning shop estimates in {root}")
+        for path in root.rglob("*"):
+            if not path.is_file() or skip_path(path):
+                continue
+            if path.suffix.lower() not in {".pdf", ".esx", ".esz"}:
+                continue
+            try:
+                resolved = path.resolve()
+            except OSError:
+                continue
+            if dest_resolved == resolved.parent or dest_resolved in resolved.parents:
+                continue
+            if reports_resolved in resolved.parents:
+                continue
+            if looks_xactimate(path):
+                copy_one(path)
 
     print(f"\nCopied {len(copied)} unique Xactimate file(s) into {dest}")
     print(f"Scanned {scanned} files while locating EV originals")

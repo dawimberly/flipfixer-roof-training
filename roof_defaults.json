@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-14T03:06:08Z",
+  "generated_at": "2026-09-14T03:16:34Z",
   "note": "EagleView geometry trains /exterior defaults. Bid spread is carrier vs code, never a mid.",
   "n_eagleview_reports": 0,
   "avg_squares": null,
@@ -19,5 +19,13 @@
     "median_carrier_total": null,
     "median_code_total": null,
     "note": "never average tickets; no recommended mid"
+  },
+  "projects": {
+    "n_projects": 0,
+    "n_with_photos": 0,
+    "n_photos": 0,
+    "n_before_after": 0,
+    "n_with_eagleview_and_ticket": 0,
+    "note": "grouped by address or job name; photos stay on disk"
   }
 }

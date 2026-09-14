@@ -96,6 +96,7 @@ def build_payload(
     ev: pd.DataFrame | None,
     spread: pd.DataFrame | None,
     traces: list[dict] | None = None,
+    projects: dict | None = None,
 ) -> dict:
     ev_frame = ev if ev is not None else pd.DataFrame()
     geometry = from_eagleview(ev_frame)
@@ -112,6 +113,14 @@ def build_payload(
         "trace_n": tune.get("trace_n", 0),
         "median_abs_error_pct": tune.get("median_abs_error_pct"),
         "spread": from_spread(spread if spread is not None else pd.DataFrame()),
+        "projects": projects or {
+            "n_projects": 0,
+            "n_with_photos": 0,
+            "n_photos": 0,
+            "n_before_after": 0,
+            "n_with_eagleview_and_ticket": 0,
+            "note": "grouped by address or job name; photos stay on disk",
+        },
     }
     return payload
 

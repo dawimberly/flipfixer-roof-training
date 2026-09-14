@@ -8,7 +8,7 @@ One roof can have several Xactimates. That is normal. Insurance writes coverage.
 
 ## EagleView
 
-1. Search Desktop / Downloads / Documents / OneDrive **and any other folders named like Flip Fixer / flpfx** for EagleView / roof-measurement PDFs. Do not copy those website repos into this lab. Only pull reports.
+1. Search Desktop / Downloads / Documents / OneDrive **and any other folders named like Flip Fixer / flpfx** for EagleView / roof-measurement PDFs, Xactimate / insurance estimates that carry Wimberly or Flip Fixer, and job photos. Coordinate them by **property address or folder/client name**. Do not copy website repos into this lab.
 2. Copy into `reports/`. Do not delete originals. Do not git-add the PDFs.
 3. Run:
 
@@ -26,8 +26,10 @@ Keep collecting Xactimate PDFs / ESX into `xactimate/`. Gitignore that folder an
 
 ```
 python collect_xactimate.py
+python collect_photos.py
 python extract_xactimate_data.py --save_raw_text
 python pair_ev_xactimate.py
+python bundle_projects.py
 ```
 
 - Extract per file: address, estimate date, claim/estimate number, squares, shingle type, tear-off, felt, ice & water, ridge, drip, steep, decking, O&P, grand total, and notes that smell like supplement vs original.
@@ -39,7 +41,7 @@ If extract fields are empty, open raw text, tighten regex, rerun. Report hit rat
 
 ## Keep retraining
 
-When more reports land, run `python retrain.py` again. Do not start a new model. Refresh `roof_defaults.json` from the EagleView set and retune GSD from `traces/` if any exist. Never average carrier and code tickets. The spread is the product.
+When more reports land, run `python retrain.py` again. Do not start a new model. Refresh `roof_defaults.json` from the EagleView set, retune GSD from `traces/` if any exist, and rebuild project bundles so photos sit with the matching address or name. Never average carrier and code tickets. The spread is the product.
 
 ## What we keep
 

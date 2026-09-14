@@ -66,6 +66,7 @@ def append_log(payload: dict) -> None:
         "gsd_scale": payload.get("gsd_scale"),
         "trace_n": payload.get("trace_n"),
         "spread": payload.get("spread"),
+        "projects": payload.get("projects"),
     }
     with LOG_PATH.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(row) + "\n")
@@ -102,10 +103,22 @@ def main() -> None:
         if code != 0:
             raise SystemExit(code)
 
+    if not args.skip_collect:
+        code = run_script("collect_photos.py")
+        if code != 0:
+            raise SystemExit(code)
+    code = run_script("bundle_projects.py")
+    if code != 0:
+        raise SystemExit(code)
+
     ev = read_csv(EXTRACTED / "eagleview_dataset.csv")
     spread = read_csv(EXTRACTED / "roof_bid_spread.csv")
     traces = load_traces()
-    payload = roof_defaults.build_payload(ev, spread, traces)
+    projects = None
+    stats_path = EXTRACTED / "project_stats.json"
+    if stats_path.exists():
+        projects = json.loads(stats_path.read_text(encoding="utf-8"))
+    payload = roof_defaults.build_payload(ev, spread, traces, projects)
     roof_defaults.write_defaults(payload, DEFAULTS_PRIVATE, DEFAULTS_PUBLIC)
     rm.write_tune(
         TUNE_PATH,
@@ -134,6 +147,12 @@ def main() -> None:
     if spread_info.get("median_code_minus_carrier") is not None:
         print(f"Median code minus carrier: {spread_info['median_code_minus_carrier']}")
     print(spread_info["note"])
+    projects = payload.get("projects") or {}
+    print(
+        f"Projects: {projects.get('n_projects', 0)} "
+        f"({projects.get('n_photos', 0)} photos, "
+        f"{projects.get('n_before_after', 0)} before/after)"
+    )
     print(DEFAULTS_PUBLIC)
     print(f"Ran at {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}")
     print("Drop more PDFs and run python retrain.py again.")

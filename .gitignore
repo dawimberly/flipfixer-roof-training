@@ -14,4 +14,14 @@ ingest-log.txt
 *.pdf
 *.esx
 *.esz
-traces/
+photos/
+projects/
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.heic
+*.heif
+*.tif
+*.tiff
+*.avif
