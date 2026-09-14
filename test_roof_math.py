@@ -4,6 +4,7 @@ import math
 import unittest
 
 import roof_math as rm
+import roof_views as rv
 
 
 class RoofMathTests(unittest.TestCase):
@@ -15,6 +16,15 @@ class RoofMathTests(unittest.TestCase):
 
     def test_waste_default(self):
         self.assertEqual(rm.apply_waste_factor(1000), 1120.0)
+
+    def test_side_photos_hold_the_rise(self):
+        self.assertEqual(rv.pitch_from_profile(8, 12), "8/12")
+        self.assertEqual(rv.pitch_from_profile(4, 12), "4/12")
+        self.assertEqual(rv.profile_views(0), ("east", "west"))
+        self.assertEqual(rv.profile_views(90), ("north", "south"))
+        self.assertEqual(rv.facing_view(180), "south")
+        self.assertEqual(rv.VIEWS["top"]["holds"], "run")
+        self.assertIsNone(rv.VIEWS["top"]["drain_deg"])
 
     def test_geodesic_100ft_square(self):
         lat0, lng0 = 29.4241, -98.4936
@@ -71,6 +81,61 @@ class RoofMathTests(unittest.TestCase):
         self.assertEqual(summary["facet_count"], 1)
         self.assertTrue(1900 < summary["total_flat_area_sqft"] < 2100)
         self.assertGreater(summary["total_area_with_pitch_multiplier_sqft"], summary["total_flat_area_sqft"])
+        self.assertIsNone(summary["eaves_ft"])
+
+    def test_gable_sides_are_the_triangles(self):
+        # 40 ft ridge, 12 ft run each side, 4/12. Two planes drain away from the ridge.
+        facets = [
+            {"pitch": "4/12", "slope_deg": 180, "latlngs": self._feet([(0, 0), (40, 0), (40, 12), (0, 12)])},
+            {"pitch": "4/12", "slope_deg": 0, "latlngs": self._feet([(0, 12), (40, 12), (40, 24), (0, 24)])},
+        ]
+        summary = rm.summarize_facets(facets, waste_pct=0)
+        self.assertEqual(summary["facet_count"], 2)
+        self.assertAlmostEqual(summary["eaves_ft"], 80.0, delta=0.8)
+        self.assertAlmostEqual(summary["ridges_ft"], 40.0, delta=0.8)
+        self.assertAlmostEqual(summary["hips_ft"], 0.0, delta=0.2)
+        self.assertAlmostEqual(summary["valleys_ft"], 0.0, delta=0.2)
+        self.assertAlmostEqual(summary["rakes_ft"], 4 * math.sqrt(12 ** 2 + 4 ** 2), delta=1.0)
+        self.assertEqual(summary["shared_edges"], 1)
+        ridge = [edge for edge in summary["edges"] if edge["kind"] == "ridge"]
+        self.assertEqual(len(ridge), 1)
+        self.assertEqual(len(ridge[0]["latlngs"]), 2)
+
+    def test_hip_is_not_pitch_times_plan(self):
+        # 40 x 30 equal-pitch hip, 6/12. Ridge is 10. Each hip plan is 15*sqrt(2), rise 7.5, length 22.5.
+        facets = [
+            {"pitch": "6/12", "slope_deg": 180, "latlngs": self._feet([(0, 0), (40, 0), (25, 15), (15, 15)])},
+            {"pitch": "6/12", "slope_deg": 0, "latlngs": self._feet([(0, 30), (15, 15), (25, 15), (40, 30)])},
+            {"pitch": "6/12", "slope_deg": 270, "latlngs": self._feet([(0, 0), (15, 15), (0, 30)])},
+            {"pitch": "6/12", "slope_deg": 90, "latlngs": self._feet([(40, 0), (40, 30), (25, 15)])},
+        ]
+        summary = rm.summarize_facets(facets, waste_pct=0)
+        self.assertAlmostEqual(summary["eaves_ft"], 140.0, delta=1.2)
+        self.assertAlmostEqual(summary["ridges_ft"], 10.0, delta=0.6)
+        self.assertAlmostEqual(summary["hips_ft"], 90.0, delta=1.5)
+        self.assertAlmostEqual(summary["valleys_ft"], 0.0, delta=0.2)
+        self.assertAlmostEqual(summary["rakes_ft"], 0.0, delta=0.2)
+        self.assertLess(summary["hips_ft"], 4 * (15 * math.sqrt(2)) * rm.pitch_multiplier("6/12"))
+
+    def test_valley_is_the_shared_hypotenuse(self):
+        facets = [
+            {"pitch": "6/12", "slope_deg": 0, "latlngs": self._feet([(0, 0), (16, 0), (8, 8)])},
+            {"pitch": "6/12", "slope_deg": 90, "latlngs": self._feet([(0, 0), (8, 8), (0, 8)])},
+        ]
+        summary = rm.summarize_facets(facets, waste_pct=0)
+        self.assertAlmostEqual(summary["valleys_ft"], 12.0, delta=0.6)
+        compare = rm.compare_to_eagleview(summary, {"total_valleys_ft": 12, "total_ridges_ft": 0})
+        self.assertAlmostEqual(compare["valleys_error_pct"], 0.0, delta=5.0)
+
+    def _feet(self, pts):
+        lat0, lng0 = 29.4417, -98.6790
+        m_lat, m_lng = rm.meters_per_degree(lat0)
+        ring = []
+        for east, north in pts:
+            lat = lat0 + (north / rm.FT_PER_M) / m_lat
+            lng = lng0 + (east / rm.FT_PER_M) / m_lng
+            ring.append([lat, lng])
+        return ring
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import subprocess
 import time
 import urllib.error
 import urllib.parse
@@ -112,6 +113,43 @@ def load_cache() -> dict:
 def save_cache(cache: dict) -> None:
     EXTRACTED.mkdir(parents=True, exist_ok=True)
     CACHE_PATH.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+
+
+_IMAGERY_DATES: list[dict] | None = None
+WAYBACK_CONFIG = "https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json"
+
+
+def imagery_dates() -> list[dict]:
+    """Dated aerial releases. Leaf-off = Nov–Feb, when trees are least in the way."""
+    global _IMAGERY_DATES
+    if _IMAGERY_DATES is not None:
+        return _IMAGERY_DATES
+    payload = http_json(WAYBACK_CONFIG, timeout=45)
+    rows = []
+    for release, meta in payload.items():
+        title = str((meta or {}).get("itemTitle") or "")
+        if "Wayback" not in title:
+            continue
+        date = title.split("Wayback", 1)[-1].strip(" )")
+        if len(date) < 10 or date[4] != "-":
+            continue
+        month = int(date[5:7])
+        leaf_off = month in (11, 12, 1, 2)
+        rows.append(
+            {
+                "id": str(release),
+                "date": date,
+                "leafOff": leaf_off,
+                "label": f"{date}{' · leaf-off' if leaf_off else ''}",
+            }
+        )
+    rows.sort(key=lambda row: row["date"], reverse=True)
+    keep = []
+    for i, row in enumerate(rows):
+        if i < 8 or (row["leafOff"] and row["date"] >= "2016-01-01"):
+            keep.append(row)
+    _IMAGERY_DATES = keep
+    return keep
 
 
 def http_json(url: str, data: bytes | None = None, headers: dict | None = None, timeout: int = 30):
@@ -362,6 +400,8 @@ def build_trace(roof: dict, facets: list[dict], gsd_scale: float, waste_pct: flo
         "num_facets": roof.get("num_facets"),
         "total_eaves_ft": roof.get("total_eaves_ft"),
         "total_rakes_ft": roof.get("total_rakes_ft"),
+        "total_ridges_ft": roof.get("total_ridges_ft"),
+        "total_valleys_ft": roof.get("total_valleys_ft"),
         "predominant_pitch": roof.get("predominant_pitch"),
     }
     compare = rm.compare_to_eagleview(summary, ev)
@@ -385,6 +425,7 @@ def build_trace(roof: dict, facets: list[dict], gsd_scale: float, waste_pct: flo
                 "facet_id": facet.get("facet_id") or f"F{i}",
                 "facet_type": facet.get("facet_type") or "unknown",
                 "pitch": facet.get("pitch") or roof.get("predominant_pitch") or "6/12",
+                "slope_deg": facet.get("slope_deg"),
                 "polygon_px": rm.polygon_px_from_latlngs(pts, zoom, origin),
                 "latlngs": pts,
                 "area_sqft": facet.get("area_sqft"),
@@ -444,6 +485,13 @@ class Handler(SimpleHTTPRequestHandler):
             key = google_maps_key()
             json_response(self, {"googleMapsKey": key, "hasGoogleMaps": bool(key)})
             return
+        if path == "/api/imagery-dates":
+            try:
+                dates = imagery_dates()
+            except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, ValueError):
+                dates = []
+            json_response(self, {"dates": dates})
+            return
         if path == "/api/roofs":
             json_response(self, {"roofs": load_roofs(), "tune": load_tune()})
             return
@@ -472,6 +520,9 @@ class Handler(SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         body = read_json(self)
+        if path == "/api/open-earth":
+            self._open_earth(body)
+            return
         if path == "/api/locate":
             address = body.get("address") or ""
             hit = geocode(address)
@@ -504,6 +555,45 @@ class Handler(SimpleHTTPRequestHandler):
             json_response(self, {"current": current, "fitted": fitted, "traced": len(traces)})
             return
         json_response(self, {"error": "unknown endpoint"}, 404)
+
+    def _open_earth(self, body: dict | None) -> None:
+        body = body or {}
+        lat = body.get("lat")
+        lng = body.get("lng")
+        address = (body.get("address") or "Roof").strip()
+        if lat is None or lng is None:
+            json_response(self, {"error": "lat/lng required"}, 400)
+            return
+        exe = Path(r"C:\Program Files\Google\Google Earth Pro\client\googleearth.exe")
+        if not exe.exists():
+            json_response(self, {"error": "Google Earth Pro is not installed"}, 404)
+            return
+        kml_path = EXTRACTED / "open-earth.kml"
+        EXTRACTED.mkdir(parents=True, exist_ok=True)
+        kml_path.write_text(
+            "\n".join(
+                [
+                    '<?xml version="1.0" encoding="UTF-8"?>',
+                    '<kml xmlns="http://www.opengis.net/kml/2.2">',
+                    "<Document>",
+                    f"<name>{address}</name>",
+                    "<LookAt>",
+                    f"<longitude>{lng}</longitude>",
+                    f"<latitude>{lat}</latitude>",
+                    "<altitude>0</altitude>",
+                    "<heading>0</heading>",
+                    "<tilt>0</tilt>",
+                    "<range>55</range>",
+                    "<altitudeMode>relativeToGround</altitudeMode>",
+                    "</LookAt>",
+                    "</Document>",
+                    "</kml>",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        subprocess.Popen([str(exe), str(kml_path)])
+        json_response(self, {"ok": True, "path": str(kml_path)})
 
     def _preview(self, body: dict) -> dict:
         roofs = {row["id"]: row for row in load_roofs()}
@@ -582,7 +672,7 @@ def main() -> None:
         print("Google Maps: official satellite (API key loaded)")
     else:
         print("Geocode: US Census (free). Google stays off until you add a key.")
-    print("Draw on satellite, or Guess outline, then Save. Fit scale when you have a handful.")
+    print("Guess is a draft. Drag a corner onto the roof edge before Save.")
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     try:
         server.serve_forever()

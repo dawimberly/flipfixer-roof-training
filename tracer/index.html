@@ -19,7 +19,7 @@
       </form>
     </div>
     <div class="actions">
-      <a id="earth-link" href="#" target="_blank" rel="noreferrer">Google Earth</a>
+      <button type="button" id="earth-link">Earth Pro</button>
       <a href="/api/earth.kml">KML of 49</a>
       <button type="button" id="btn-draw">Draw facet</button>
       <button type="button" id="btn-guess">Guess outline</button>
@@ -31,6 +31,21 @@
     <aside id="list"></aside>
     <section id="map-wrap">
       <div id="map"></div>
+      <div id="view-tools">
+        <div class="angles" id="angles">
+          <button type="button" data-angle="top" class="on">Top</button>
+          <button type="button" data-angle="north">North</button>
+          <button type="button" data-angle="east">East</button>
+          <button type="button" data-angle="south">South</button>
+          <button type="button" data-angle="west">West</button>
+        </div>
+        <label class="date-pick">Date
+          <select id="imagery-date">
+            <option value="">Latest Google</option>
+          </select>
+        </label>
+        <button type="button" id="btn-leafoff">Leaf-off</button>
+      </div>
       <p id="draw-help" hidden></p>
     </section>
     <aside id="panel">
@@ -46,7 +61,7 @@
         <input id="waste" type="number" step="1" min="0" max="30" />
       </label>
       <div id="compare"></div>
-      <p class="hint">Google satellite, zoomed to rooftop. Draw one outline to tune scale; split facets when you want pitch mix. Field-verify before you order.</p>
+      <p class="hint">Five photos: north, south, east, west, and top. The plane that faces a side photo drains that way. The rise is the triangle on the ends, in the two side photos that look along the ridge. The run of that triangle is the top photo.</p>
     </aside>
   </main>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

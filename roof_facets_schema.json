@@ -1,5 +1,5 @@
 {
-  "_comment": "Schema for a traced roof. One per property. Feed the estimator the same way room scans feed a kitchen.",
+  "_comment": "One property. Each facet is a plane: a plan ring, its own pitch, and slope_deg (compass bearing water drains, 0 north, 90 east). Ridge, hip, valley, rake, and eave are computed from those sides. They are not typed in.",
   "property": {
     "address": "123 Example St, San Antonio, TX",
     "lat": 29.4241,
@@ -12,6 +12,7 @@
       "facet_id": "F1",
       "facet_type": "hip",
       "pitch": "6/12",
+      "slope_deg": 180,
       "polygon_px": [[120, 80], [340, 80], [400, 220], [60, 220]],
       "area_sqft": 812.4,
       "notes": "Front-facing main roof plane"
