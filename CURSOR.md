@@ -8,7 +8,7 @@ One roof can have several Xactimates. That is normal. Insurance writes coverage.
 
 ## EagleView
 
-1. Search Desktop / Downloads / Documents / OneDrive **and any other folders named like Flip Fixer / flpfx** for EagleView / roof-measurement PDFs, Xactimate / insurance estimates that carry Wimberly or Flip Fixer, and job photos. Coordinate them by **property address or folder/client name**. Do not copy website repos into this lab.
+1. Search Desktop / Downloads / Documents / OneDrive **and any other folders named like Flip Fixer / flpfx** for EagleView / roof-measurement PDFs, Xactimate / insurance estimates that carry Wimberly or Flip Fixer, and job photos. Coordinate them by **property address or folder/client name**. Shop docs (ads, how-tos, cabinetry PDFs, brand) already live in `dawimberly/flpfxr-archive` — do not copy that repo in, and do not treat those PDFs as EagleViews. Do not delete local HEIC/zip piles, duplicate photos, friend-pool estimates, or login backups. Do not git-add keys.
 2. Copy into `reports/`. Do not delete originals. Do not git-add the PDFs.
 3. Run:
 

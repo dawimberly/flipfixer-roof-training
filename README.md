@@ -10,14 +10,18 @@ This is the consolidated **roof lab**. The public Flip Fixer site stays in its o
 
 ## Where the other Flip Fixer copies live
 
+Usable shop files (ads packs, schedules, how-to docs, brand files, job notes, cabinetry PDFs, August 17–23 posting set) live in one private repo: [dawimberly/flpfxr-archive](https://github.com/dawimberly/flpfxr-archive). Do not copy that archive into this lab. Do not treat ads or cabinetry PDFs as EagleViews.
+
 | Copy | What it is |
 | --- | --- |
-| [dawimberly/flpfxr](https://github.com/dawimberly/flpfxr) | Live marketing site + employee estimator on [theflipfixer.com](https://theflipfixer.com). Roof tracer still belongs behind that login, not as a fourth Vercel app. |
-| [dawimberly/flipfixer](https://github.com/dawimberly/flipfixer) | Older Nuxt marketing site. Vercel project is gone. Do not revive it. |
-| [westwick/flipfixer](https://github.com/westwick/flipfixer) | Earlier public copy of the Nuxt site. |
+| [dawimberly/flpfxr](https://github.com/dawimberly/flpfxr) | Live marketing site on [theflipfixer.com](https://theflipfixer.com). The local-only call-button work is on branch `cursor/fix-ios-android-call-buttons`. |
+| [dawimberly/the-flip-fixer](https://github.com/dawimberly/the-flip-fixer) | Estimator. Roof tracer still belongs behind employee login, not as a fourth Vercel app. |
+| [dawimberly/flipfixer-estimator](https://github.com/dawimberly/flipfixer-estimator) | Estimator copy already on GitHub. |
+| [dawimberly/flipfixer](https://github.com/dawimberly/flipfixer) | Older Nuxt marketing site. Do not revive it. |
+| [dawimberly/flpfxr-archive](https://github.com/dawimberly/flpfxr-archive) | Private file cabinet: ads, schedules, how-tos, brand, job notes, cabinetry PDFs, Aug 17–23 posts. |
 | This repo (`flipfixer-roof-training`) | EagleView + Xactimate ingest, pairing, and the satellite tracer used to train `/exterior`. |
 
-Local folders on the shop machine (`flpfx`, `FLP Fixer`, `The Flip Fixer`, …) are ingest roots. Collectors pick up EagleViews, Xactimates / insurance estimates with your shop name, and job photos, then bundle them by **address or job name**.
+EagleView PDFs, Xactimates, keys, recovery codes, login backups, raw HEIC/zip piles, duplicate photo folders, and friend-pool estimates stay **off GitHub**. Do not delete those local originals. Collectors still read them from the shop PC (`reports/` / `xactimate/` are gitignored because addresses live in those files).
 
 ## What Cursor should do
 
