@@ -9,6 +9,7 @@ Opens http://127.0.0.1:8765 — satellite map, draw or guess outline, compare to
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import time
@@ -142,8 +143,20 @@ def geocode_google(address: str, key: str) -> dict | None:
     }
 
 
+def tidy_address(address: str) -> str:
+    """Strip junk that makes free geocoders miss. Does not invent a city."""
+    text = re.sub(r"\s+", " ", address or "").strip()
+    text = re.sub(r"\s*#\d+[A-Z]?\s*", " ", text, flags=re.I)
+    text = re.sub(r",\s*San Antonio Ln,", ", San Antonio,", text, flags=re.I)
+    text = re.sub(r"\bCrk\b", "Creek", text, flags=re.I)
+    text = re.sub(r"\bPt\b", "Point", text, flags=re.I)
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"\s+,", ",", text)
+    return text.strip()
+
+
 def geocode_nominatim(address: str) -> dict | None:
-    query = urllib.parse.urlencode({"q": address, "format": "json", "limit": 1})
+    query = urllib.parse.urlencode({"q": tidy_address(address), "format": "json", "limit": 1})
     url = f"https://nominatim.openstreetmap.org/search?{query}"
     try:
         hits = http_json(url)
@@ -159,21 +172,89 @@ def geocode_nominatim(address: str) -> dict | None:
     }
 
 
+def geocode_census(address: str) -> dict | None:
+    """US Census Bureau. Free, no key. Street match, not always rooftop."""
+    query = urllib.parse.urlencode(
+        {
+            "address": tidy_address(address),
+            "benchmark": "Public_AR_Current",
+            "format": "json",
+        }
+    )
+    url = f"https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?{query}"
+    try:
+        payload = http_json(url, timeout=45)
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        return None
+    matches = ((payload or {}).get("result") or {}).get("addressMatches") or []
+    if not matches:
+        return None
+    coords = matches[0].get("coordinates") or {}
+    try:
+        lat = float(coords["y"])
+        lng = float(coords["x"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return {
+        "lat": lat,
+        "lng": lng,
+        "label": matches[0].get("matchedAddress") or tidy_address(address),
+        "source": "census",
+    }
+
+
 def geocode(address: str) -> dict | None:
     cache = load_cache()
     cached = cache.get(address)
     key = google_maps_key()
-    if cached and cached.get("lat") is not None:
+    if isinstance(cached, dict) and cached.get("lat") is not None:
         if not key or cached.get("source") == "google":
             return cached
-    hit = geocode_google(address, key) if key else geocode_nominatim(address)
-    if hit is None and key:
+    hit = geocode_google(address, key) if key else None
+    if hit is None:
+        hit = geocode_census(address)
+    if hit is None:
         hit = geocode_nominatim(address)
-    cache[address] = hit
-    save_cache(cache)
-    if hit and hit.get("source") == "nominatim":
-        time.sleep(1.05)
+        if hit:
+            time.sleep(1.05)
+    if hit:
+        cache[address] = hit
+        save_cache(cache)
+    elif cache.get(address) is None:
+        cache.pop(address, None)
+        save_cache(cache)
     return hit
+
+
+def haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    radius = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lng2 - lng1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * radius * math.asin(math.sqrt(a))
+
+
+def ring_centroid(latlngs: list[list[float]]) -> tuple[float, float]:
+    lat = sum(pt[0] for pt in latlngs) / len(latlngs)
+    lng = sum(pt[1] for pt in latlngs) / len(latlngs)
+    return lat, lng
+
+
+def closest_ring(rings: list[list[list[float]]], lat: float, lng: float, max_m: float = 40.0):
+    best = None
+    best_d = None
+    for ring in rings:
+        if len(ring) < 3:
+            continue
+        clat, clng = ring_centroid(ring)
+        dist = haversine_m(lat, lng, clat, clng)
+        if best_d is None or dist < best_d:
+            best = ring
+            best_d = dist
+    if best is None or best_d is None or best_d > max_m:
+        return None
+    return best
 
 
 def osm_building(lat: float, lng: float, radius_m: float = 80.0) -> list[list[float]] | None:
@@ -193,17 +274,69 @@ def osm_building(lat: float, lng: float, radius_m: float = 80.0) -> list[list[fl
         )
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
         return None
-    elements = payload.get("elements") or []
-    best = None
-    best_area = 0.0
-    for el in elements:
+    rings = []
+    for el in payload.get("elements") or []:
         geom = el.get("geometry") or []
-        latlngs = [(pt["lat"], pt["lon"]) for pt in geom]
-        area = rm.geodesic_ring_area_sqft(latlngs)
-        if area > best_area:
-            best_area = area
-            best = [[pt[0], pt[1]] for pt in latlngs]
-    return best
+        latlngs = [[pt["lat"], pt["lon"]] for pt in geom]
+        if len(latlngs) >= 3:
+            rings.append(latlngs)
+    return closest_ring(rings, lat, lng)
+
+
+def microsoft_building(lat: float, lng: float, radius_m: float = 70.0) -> list[list[float]] | None:
+    """Microsoft US building footprints via Esri. Footprint, not roof facets."""
+    dlat = radius_m / 111000.0
+    dlng = radius_m / (111000.0 * max(0.2, abs(math.cos(math.radians(lat)))))
+    geom = json.dumps(
+        {
+            "xmin": lng - dlng,
+            "ymin": lat - dlat,
+            "xmax": lng + dlng,
+            "ymax": lat + dlat,
+            "spatialReference": {"wkid": 4326},
+        }
+    )
+    query = urllib.parse.urlencode(
+        {
+            "f": "geojson",
+            "returnGeometry": "true",
+            "spatialRel": "esriSpatialRelIntersects",
+            "geometry": geom,
+            "geometryType": "esriGeometryEnvelope",
+            "outSR": "4326",
+            "outFields": "*",
+        }
+    )
+    url = (
+        "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/"
+        f"MSBFP2/FeatureServer/0/query?{query}"
+    )
+    try:
+        payload = http_json(url)
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        return None
+    rings = []
+    for feat in payload.get("features") or []:
+        geometry = feat.get("geometry") or {}
+        coords = geometry.get("coordinates")
+        if not coords:
+            continue
+        if geometry.get("type") == "MultiPolygon":
+            coords = max(coords, key=lambda poly: len(poly[0]) if poly else 0)
+        ring = [[pt[1], pt[0]] for pt in coords[0]]
+        if len(ring) >= 3:
+            rings.append(ring)
+    return closest_ring(rings, lat, lng)
+
+
+def guess_building(lat: float, lng: float) -> tuple[list[list[float]] | None, str | None]:
+    ring = osm_building(lat, lng)
+    if ring:
+        return ring, "osm"
+    ring = microsoft_building(lat, lng)
+    if ring:
+        return ring, "microsoft"
+    return None, None
 
 
 def load_tune() -> dict:
@@ -352,8 +485,8 @@ class Handler(SimpleHTTPRequestHandler):
             if lat is None or lng is None:
                 json_response(self, {"error": "lat/lng required"}, 400)
                 return
-            ring = osm_building(float(lat), float(lng))
-            json_response(self, {"latlngs": ring})
+            ring, source = guess_building(float(lat), float(lng))
+            json_response(self, {"latlngs": ring, "source": source})
             return
         if path == "/api/preview":
             json_response(self, self._preview(body))
@@ -376,7 +509,24 @@ class Handler(SimpleHTTPRequestHandler):
         roofs = {row["id"]: row for row in load_roofs()}
         roof = roofs.get(body.get("id"))
         if not roof:
-            return {"error": "unknown roof"}
+            address = (body.get("address") or "").strip()
+            rid = (body.get("id") or "").strip() or roof_id(address or "scratch")
+            if not address and not rid:
+                return {"error": "unknown roof"}
+            roof = {
+                "id": rid,
+                "address": address or rid,
+                "source_file": "scratch",
+                "total_roof_area_sqft": None,
+                "total_squares": None,
+                "predominant_pitch": body.get("predominant_pitch"),
+                "num_facets": None,
+                "total_ridges_ft": None,
+                "total_valleys_ft": None,
+                "total_rakes_ft": None,
+                "total_eaves_ft": None,
+                "waste_table_pct": None,
+            }
         tune = load_tune()
         gsd_scale = float(body.get("gsd_scale") or tune.get("gsd_scale") or 1.0)
         waste_pct = float(body.get("waste_pct") or tune.get("waste_pct") or rm.DEFAULT_WASTE_PCT)
@@ -431,7 +581,7 @@ def main() -> None:
     if google_maps_key():
         print("Google Maps: official satellite (API key loaded)")
     else:
-        print("Google Maps: satellite tiles (add GOOGLE_MAPS_API_KEY to .env for the official map)")
+        print("Geocode: US Census (free). Google stays off until you add a key.")
     print("Draw on satellite, or Guess outline, then Save. Fit scale when you have a handful.")
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     try:

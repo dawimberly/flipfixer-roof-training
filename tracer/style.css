@@ -17,6 +17,22 @@ header {
   padding: 10px 14px;
   border-bottom: 1px solid var(--line);
   background: var(--panel);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.goto {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 12px;
+  vertical-align: middle;
+}
+.goto input {
+  width: 240px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: #101418;
+  color: var(--text);
 }
 header a, header button {
   color: var(--text);

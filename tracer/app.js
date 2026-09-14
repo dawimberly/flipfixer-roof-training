@@ -405,6 +405,7 @@ async function preview() {
   if (!state.current) return;
   const payload = {
     id: state.current.id,
+    address: state.current.address,
     facets: facetsFromMap(),
     gsd_scale: Number(scaleEl.value),
     waste_pct: Number(wasteEl.value),
@@ -427,13 +428,43 @@ async function preview() {
   }
 }
 
+async function jumpToAddress(query) {
+  const q = (query || "").trim();
+  if (!q) {
+    statusEl.textContent = "Type an address";
+    return;
+  }
+  const listed = state.roofs.find((row) => row.address && row.address.toLowerCase().includes(q.toLowerCase()));
+  if (listed) {
+    await selectRoof(listed.id);
+    return;
+  }
+  const id = "scratch_" + q.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  let roof = state.roofs.find((row) => row.id === id);
+  if (!roof) {
+    roof = {
+      id,
+      address: q,
+      source_file: "scratch",
+      total_squares: null,
+      predominant_pitch: "6/12",
+      num_facets: null,
+      traced: false,
+    };
+    state.roofs.unshift(roof);
+  }
+  await selectRoof(roof.id);
+}
+
 async function selectRoof(id) {
   const roof = state.roofs.find((row) => row.id === id);
   if (!roof) return;
   state.current = roof;
   pitchEl.value = roof.predominant_pitch && PITCHES.includes(roof.predominant_pitch) ? roof.predominant_pitch : "6/12";
   titleEl.textContent = roof.address;
-  metaEl.textContent = `${fmt(roof.total_squares, 1)} squares · ${roof.predominant_pitch} · ${roof.num_facets} facets · ${roof.source_file}`;
+  metaEl.textContent = roof.source_file === "scratch"
+    ? "Not in the EagleView set — draw to get squares. Field-verify before you order."
+    : `${fmt(roof.total_squares, 1)} squares · ${roof.predominant_pitch} · ${roof.num_facets} facets · ${roof.source_file}`;
   earthLink.href = `https://earth.google.com/web/search/${encodeURIComponent(roof.address)}`;
   renderList();
   statusEl.textContent = "Locating…";
@@ -465,6 +496,12 @@ async function selectRoof(id) {
     // no saved trace
   }
   renderCompare(null);
+  if (roof.source_file === "scratch") {
+    statusEl.textContent = roof.lat
+      ? "Not in the EagleView set — draw the roof to get squares"
+      : "Geocode failed — pan the map yourself";
+    return;
+  }
   statusEl.textContent = view && view.kind === "google"
     ? "Click the roof corners, Enter to close"
     : "Draw the roof (polygon tool, top-right) or Guess outline";
@@ -475,7 +512,7 @@ async function guessOutline() {
     statusEl.textContent = "Locate the house first";
     return;
   }
-  statusEl.textContent = "Asking OSM for a building outline…";
+    statusEl.textContent = "Asking OSM, then Microsoft footprints…";
   try {
     const data = await api("/api/guess", {
       method: "POST",
@@ -488,6 +525,12 @@ async function guessOutline() {
     }
     setPolygons([{ pitch: pitchEl.value, latlngs: data.latlngs }]);
     await preview();
+    const src = data.source === "microsoft" ? "Microsoft footprint" : data.source === "osm" ? "OSM" : "outline";
+    const err = state.traces[state.current.id] && state.traces[state.current.id].compare
+      ? state.traces[state.current.id].compare.area_error_pct
+      : null;
+    const errBit = err === null || err === undefined ? "" : ` · area error ${fmt(err, 1)}% vs EagleView`;
+    statusEl.textContent = `${src} (house outline, not roof facets)${errBit}`;
   } catch (err) {
     statusEl.textContent = "Guess failed — draw it";
   }
@@ -497,6 +540,7 @@ async function saveTrace() {
   if (!state.current) return;
   const payload = {
     id: state.current.id,
+    address: state.current.address,
     facets: facetsFromMap(),
     gsd_scale: Number(scaleEl.value),
     waste_pct: Number(wasteEl.value),
@@ -535,6 +579,13 @@ document.getElementById("btn-guess").onclick = guessOutline;
 document.getElementById("btn-save").onclick = saveTrace;
 document.getElementById("btn-fit").onclick = fitScale;
 document.getElementById("btn-draw").onclick = () => view && view.startDraw();
+const gotoForm = document.getElementById("goto-form");
+if (gotoForm) {
+  gotoForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    jumpToAddress(document.getElementById("goto").value);
+  });
+}
 document.addEventListener("keydown", (event) => {
   if (event.target.tagName === "INPUT" || event.target.tagName === "SELECT") return;
   const idx = state.roofs.findIndex((row) => state.current && row.id === state.current.id);
@@ -572,7 +623,14 @@ async function boot() {
   wasteEl.value = state.tune.waste_pct || 12;
   statusEl.textContent = `${state.roofs.length} EagleView roofs · Google satellite`;
   renderList();
-  if (state.roofs[0]) selectRoof(state.roofs[0].id);
+  const want = new URLSearchParams(window.location.search).get("q");
+  if (want) {
+    const box = document.getElementById("goto");
+    if (box) box.value = want;
+    await jumpToAddress(want);
+  } else if (state.roofs[0]) {
+    selectRoof(state.roofs[0].id);
+  }
 }
 
 boot().catch((err) => {
