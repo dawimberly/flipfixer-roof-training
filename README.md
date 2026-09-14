@@ -38,6 +38,14 @@ python extract_xactimate_data.py --save_raw_text
 python pair_ev_xactimate.py
 ```
 
+Keep retraining. Drop more PDFs and run the same loop:
+
+```bash
+python retrain.py
+```
+
+That collect / extract / pairs again, then writes `roof_defaults.json` (waste %, pitch mix, facet count, GSD scale from traces). Bid files still keep carrier vs code as a spread — they are never averaged into a mid. Run it every time a new EagleView or Xactimate shows up. Use `--skip-collect` if the files are already in `reports/` / `xactimate/`.
+
 If the filenames are just `Report.pdf` and `Scan (3).pdf`, point Cursor at the folders you know:
 
 ```bash
@@ -60,6 +68,7 @@ One roof can have several Xactimates. Insurance writes coverage. The house needs
 | `extracted/paired_ev_xactimate.csv` | One row per XM, joined to its EagleView |
 | `extracted/roof_bid_spread.csv` | One row per property: carrier vs code, no mid |
 | `extracted/*_raw.txt` | Debug dump if a regex misses |
+| `roof_defaults.json` | Numbers-only snapshot for `/exterior` (safe to commit; no addresses) |
 
 Use the averages (waste %, pitch mix, facet count) as defaults on `/exterior` in `the-flip-fixer`. Use the spread when you talk price. Field-verify before you order.
 

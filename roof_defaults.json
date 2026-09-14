@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-09-14T03:06:08Z",
+  "note": "EagleView geometry trains /exterior defaults. Bid spread is carrier vs code, never a mid.",
+  "n_eagleview_reports": 0,
+  "avg_squares": null,
+  "avg_waste_pct": null,
+  "median_waste_pct": null,
+  "avg_facets": null,
+  "pitch_mix": {},
+  "predominant_pitch": null,
+  "waste_pct": 12.0,
+  "gsd_scale": 1.0,
+  "trace_n": 0,
+  "median_abs_error_pct": null,
+  "spread": {
+    "properties": 0,
+    "with_2plus_tickets": 0,
+    "median_code_minus_carrier": null,
+    "median_carrier_total": null,
+    "median_code_total": null,
+    "note": "never average tickets; no recommended mid"
+  }
+}

@@ -37,6 +37,10 @@ python pair_ev_xactimate.py
 
 If extract fields are empty, open raw text, tighten regex, rerun. Report hit rates. When you finish: how many XM files, how many unique addresses, how many EV addresses got 2+ tickets, median carrier vs code delta.
 
+## Keep retraining
+
+When more reports land, run `python retrain.py` again. Do not start a new model. Refresh `roof_defaults.json` from the EagleView set and retune GSD from `traces/` if any exist. Never average carrier and code tickets. The spread is the product.
+
 ## What we keep
 
 Numbers only. EagleView: area, squares, pitch, facets, ridges, valleys, rakes, eaves, waste %. Xactimate: the fields above, plus the carrier/code spread. That set trains The Flip Fixer roof tracer and bid argument.
