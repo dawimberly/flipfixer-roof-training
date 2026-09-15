@@ -41,13 +41,16 @@ def facets_from_record(record: dict) -> list[dict]:
             latlngs = facet["latlngs"]
         else:
             latlngs = latlngs_from_feet(lat0, lng0, facet.get("feet") or [])
-        facets.append(
-            {
-                "pitch": facet.get("pitch"),
-                "slope_deg": facet.get("slope_deg"),
-                "latlngs": latlngs,
-            }
-        )
+        item = {
+            "pitch": facet.get("pitch"),
+            "slope_deg": facet.get("slope_deg"),
+            "latlngs": latlngs,
+        }
+        if facet.get("wall"):
+            item["wall"] = True
+        if facet.get("wall_edges"):
+            item["wall_edges"] = list(facet["wall_edges"])
+        facets.append(item)
     return facets
 
 
@@ -119,6 +122,7 @@ def score_record(record: dict) -> dict:
         "eave": summary.get("eaves_ft"),
         "ev_eave": ev["total_eaves_ft"],
         "eave_err": compare.get("eaves_error_pct"),
+        "step": summary.get("steps_ft"),
         "squares": summary.get("total_squares"),
         "ev_squares": ev["total_squares"],
         "squares_err": compare.get("squares_error_pct"),

@@ -120,7 +120,7 @@ Helpers (Earth screenshots you already captured — not tile scrapes):
 
 San Antonio span: Crooked Path, Spring Rain, Meadow Lawn, Harpers Ferry, Rebeccas Trail.
 
-As of the last pass: **Meadow Lawn main gable** registered (ridge + run from top, rise from one profile / wall scale). Wing, valleys, second ridge not in that pass. Others still not registered (trees / incomplete).
+As of the last pass: **Spring Rain**, **Meadow Lawn**, and **Harpers Ferry** scored lines are in the envelope. Harpers step is 50.1 vs EV 57; the missing feet are not on the rings (see `extracted/sop_pass_note.txt`). Crooked Path and Rebeccas Trail are not registered.
 
 Parcel / footprint backtests (`backtest_parcel.py`, `backtest_footprints.py`) score **squares from one ring**. That is **not** the test of the triangle measure. Do not treat a squares-only box match as a pass.
 

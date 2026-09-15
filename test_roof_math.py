@@ -127,6 +127,49 @@ class RoofMathTests(unittest.TestCase):
         compare = rm.compare_to_eagleview(summary, {"total_valleys_ft": 12, "total_ridges_ft": 0})
         self.assertAlmostEqual(compare["valleys_error_pct"], 0.0, delta=5.0)
 
+    def test_shed_high_edge_is_step_not_ridge(self):
+        # One plane against a wall. The high level edge has no opposing roof.
+        facets = [
+            {"pitch": "4/12", "slope_deg": 180, "latlngs": self._feet([(0, 0), (40, 0), (40, 12), (0, 12)])},
+        ]
+        summary = rm.summarize_facets(facets, waste_pct=0)
+        self.assertAlmostEqual(summary["eaves_ft"], 40.0, delta=0.8)
+        self.assertAlmostEqual(summary["ridges_ft"], 0.0, delta=0.2)
+        self.assertAlmostEqual(summary["steps_ft"], 40.0, delta=0.8)
+        self.assertAlmostEqual(summary["rakes_ft"], 2 * math.sqrt(12 ** 2 + 4 ** 2), delta=1.0)
+
+    def test_wall_edges_mark_step(self):
+        # Same gable as the triangle test; north hypotenuses flagged as wall.
+        facets = [
+            {"pitch": "4/12", "slope_deg": 180, "wall_edges": [1], "latlngs": self._feet([(0, 0), (40, 0), (40, 12), (0, 12)])},
+            {"pitch": "4/12", "slope_deg": 0, "wall_edges": [1], "latlngs": self._feet([(0, 12), (40, 12), (40, 24), (0, 24)])},
+        ]
+        summary = rm.summarize_facets(facets, waste_pct=0)
+        self.assertAlmostEqual(summary["ridges_ft"], 40.0, delta=0.8)
+        self.assertAlmostEqual(summary["eaves_ft"], 80.0, delta=0.8)
+        self.assertAlmostEqual(summary["steps_ft"], 2 * math.sqrt(12 ** 2 + 4 ** 2), delta=1.0)
+        self.assertAlmostEqual(summary["rakes_ft"], 2 * math.sqrt(12 ** 2 + 4 ** 2), delta=1.0)
+
+    def test_wall_shed_does_not_steal_gable_eave(self):
+        # Two-plane gable plus a west shed that dies into the wall, not the eave.
+        hypot = math.sqrt(12 ** 2 + 4 ** 2)
+        facets = [
+            {"pitch": "4/12", "slope_deg": 270, "latlngs": self._feet([(-12, 12), (0, 12), (0, -12), (-12, -12)])},
+            {"pitch": "4/12", "slope_deg": 90, "latlngs": self._feet([(12, 12), (0, 12), (0, -12), (12, -12)])},
+            {
+                "pitch": "4/12",
+                "slope_deg": 270,
+                "wall": True,
+                "wall_edges": [0],
+                "latlngs": self._feet([(-26, 10), (-14, 10), (-14, -10), (-26, -10)]),
+            },
+        ]
+        summary = rm.summarize_facets(facets, waste_pct=0)
+        self.assertAlmostEqual(summary["ridges_ft"], 24.0, delta=0.8)
+        self.assertAlmostEqual(summary["eaves_ft"], 24.0 + 24.0 + 20.0, delta=1.2)
+        self.assertAlmostEqual(summary["steps_ft"], 20.0 + hypot, delta=1.2)
+        self.assertEqual(summary["valleys_ft"] or 0.0, 0.0)
+
     def _feet(self, pts):
         lat0, lng0 = 29.4417, -98.6790
         m_lat, m_lng = rm.meters_per_degree(lat0)

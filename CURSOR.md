@@ -46,7 +46,7 @@ python sop_score.py extracted/sop_five.json
 
 ### Five-roof SOP (in progress)
 
-Addresses used: Crooked Path, Spring Rain, Meadow Lawn, Harpers Ferry, Rebeccas Trail (San Antonio). Meadow Lawn main gable has a first registered measure (top + profile). Finish remaining planes and the other roofs the same simple way. Do not commit unless asked.
+Addresses used: Crooked Path, Spring Rain, Meadow Lawn, Harpers Ferry, Rebeccas Trail (San Antonio). Spring Rain, Meadow Lawn, and Harpers scored lines are in the envelope. Harpers step 50 vs 57 is recorded in `extracted/sop_pass_note.txt` — do not invent the last feet. Crooked Path / Rebeccas parked. Do not commit unless asked.
 
 ---
 

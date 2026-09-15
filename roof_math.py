@@ -190,6 +190,11 @@ def classify_edges(facets: list[dict], gsd_scale: float = 1.0, snap_ft: float = 
     that triangle: sqrt(plan^2 + rise^2). A hip is not plan times the pitch
     factor. Shared sides are counted once. Corners within snap_ft are the
     same point.
+
+    A ridge is two planes meeting. A single high level edge with no opposing
+    roof is step flashing (wall plate), not a ridge. Mark a gable-end as
+    `wall_edges` (ring index) or `wall` on the facet to force that side to
+    step. Step stays out of the scored eave and rake totals.
     """
     empty = {
         "classified": False,
@@ -233,6 +238,8 @@ def classify_edges(facets: list[dict], gsd_scale: float = 1.0, snap_ft: float = 
         upslope = None if descent is None else (-descent[0], -descent[1])
         origin = local[0]
         n = len(local)
+        wall_edges = set(facet.get("wall_edges") or [])
+        facet_wall = bool(facet.get("wall"))
         for i in range(n):
             p1 = local[i]
             p2 = local[(i + 1) % n]
@@ -258,8 +265,13 @@ def classify_edges(facets: list[dict], gsd_scale: float = 1.0, snap_ft: float = 
                     drains = "toward"
                 else:
                     drains = "away"
+            wall_side = i in wall_edges or (facet_wall and drains == "away")
             slot = groups.setdefault(key, {"sides": [], "plans": [], "rises": [], "ends": {}})
-            slot["sides"].append({"drains": drains, "rise": rise})
+            slot["sides"].append({
+                "drains": drains,
+                "rise": rise,
+                "wall": wall_side,
+            })
             slot["plans"].append(plan)
             if rise is not None:
                 slot["rises"].append(rise)
@@ -277,11 +289,18 @@ def classify_edges(facets: list[dict], gsd_scale: float = 1.0, snap_ft: float = 
         level = rise <= max(0.4, 0.03 * plan)
         length = plan if level else math.hypot(plan, rise)
         drains = [side["drains"] for side in slot["sides"]]
+        wall = any(side.get("wall") for side in slot["sides"])
         kind = "unclassified"
         if drains and all(item is not None for item in drains):
-            if len(drains) == 1:
+            if wall and len(drains) == 1 and not (drains[0] == "toward" and level):
+                # Explicit wall / wall_edges: gable end or high plate against
+                # a wall is step flashing, not eave/rake/ridge.
+                kind = "step"
+            elif len(drains) == 1:
                 if drains[0] == "away" and level:
-                    kind = "ridge"
+                    # A ridge is two planes. One high level edge with no
+                    # opposing roof is the wall plate.
+                    kind = "step"
                 elif drains[0] == "toward" and level:
                     kind = "eave"
                 else:
