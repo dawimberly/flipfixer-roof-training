@@ -40,6 +40,8 @@ Then, if collect skipped them because the name was bland, copy the PDFs into `re
 
 Use the averages (waste %, pitch mix, facet count) as defaults on `/exterior` in `the-flip-fixer`.
 
+`roof_math.trace_sanity` is a 1-story smell test: living + garage, a drip-edge band, then pitch. A ~1,700 sq ft ranch with a 2-car garage should land in the mid-20s squares, not 39. Flag traces that miss that band before you order anything.
+
 ## Rules
 
 - Do not commit PDFs.

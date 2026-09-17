@@ -46,3 +46,66 @@ def sloped_area_sqft(flat_sqft: float, pitch: str) -> float:
 
 def apply_waste_factor(sqft: float, waste_pct: float = 12.0) -> float:
     return round(sqft * (1 + waste_pct / 100), 1)
+
+
+def rectangle_perimeter_ft(area_sqft: float, aspect: float = 1.9) -> float:
+    """Perimeter of a rectangle with this floor area. Ranch roofs are ~1.8–2.0:1."""
+    if area_sqft <= 0 or aspect <= 0:
+        return 0.0
+    length = math.sqrt(area_sqft * aspect)
+    width = area_sqft / length
+    return 2.0 * (length + width)
+
+
+def one_story_expected_squares(
+    living_sqft: float,
+    garage_sqft: float = 0.0,
+    pitch: str = "4/12",
+    overhang_ft: float = 1.5,
+    waste_pct: float = 0.0,
+    aspect: float = 1.9,
+) -> float:
+    """
+    Ballpark squares for a simple 1-story house + attached garage.
+    Footprint plus a drip-edge band, then pitch. Not a bid.
+    """
+    footprint = max(living_sqft, 0.0) + max(garage_sqft, 0.0)
+    peri = rectangle_perimeter_ft(footprint, aspect)
+    plan = footprint + peri * max(overhang_ft, 0.0)
+    sloped = sloped_area_sqft(plan, pitch)
+    if waste_pct:
+        sloped = sloped * (1 + waste_pct / 100)
+    return round(sloped / 100.0, 2)
+
+
+def trace_sanity(
+    measured_squares: float,
+    living_sqft: float,
+    garage_sqft: float = 0.0,
+    stories: float = 1.0,
+    pitch: str = "4/12",
+) -> str:
+    """
+    Flag a trace that is way off the building footprint.
+
+    Compares squares to (living/stories + garage). A 1-story ranch usually
+    lands around 1.15–1.35× that footprint after overhangs and pitch.
+    Returns "low", "ok", or "high".
+    """
+    if measured_squares <= 0 or living_sqft <= 0:
+        return "ok"
+    stories = stories if stories and stories > 0 else 1.0
+    footprint = living_sqft / stories + max(garage_sqft, 0.0)
+    if footprint <= 0:
+        return "ok"
+    ratio = measured_squares * 100.0 / footprint
+    # Pitch still has to land near the footprint. 12/12 is only 1.41× plan.
+    _ = pitch
+    # Below ~footprint usually means the garage (or a wing) was dropped.
+    if ratio < 0.90:
+        return "low"
+    # 1.55× still covers 6/12 + 2 ft overhang + 12% waste. 39 on a
+    # 2,300 sq ft ranch is ~1.7× and should fail.
+    if ratio > 1.55:
+        return "high"
+    return "ok"
