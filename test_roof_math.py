@@ -4,6 +4,7 @@ import unittest
 
 from roof_math import (
     apply_waste_factor,
+    diagnose_measured_squares,
     one_story_expected_squares,
     rectangle_perimeter_ft,
     sloped_area_sqft,
@@ -34,6 +35,13 @@ class RoofMathTests(unittest.TestCase):
         mid = one_story_expected_squares(1673, 620, pitch="4/12")
         self.assertEqual(trace_sanity(mid, 1673, 620, stories=1, pitch="4/12"), "ok")
         self.assertEqual(trace_sanity(19.5, 1673, 620, stories=1, pitch="4/12"), "low")
+
+    def test_thirty_nine_is_doubled_living_plus_waste(self):
+        msg = diagnose_measured_squares(39.0, 1673, 620, pitch="4/12")
+        self.assertIn("counted twice", msg)
+        self.assertIn("garage", msg)
+        living_sloped = sloped_area_sqft(1673, "4/12") / 100
+        self.assertAlmostEqual(living_sloped * 2 * 1.12, 39.46, delta=0.05)
 
 
 if __name__ == "__main__":

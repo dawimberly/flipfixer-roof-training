@@ -40,7 +40,9 @@ Then, if collect skipped them because the name was bland, copy the PDFs into `re
 
 Use the averages (waste %, pitch mix, facet count) as defaults on `/exterior` in `the-flip-fixer`.
 
-`roof_math.trace_sanity` is a 1-story smell test: living + garage, a drip-edge band, then pitch. A ~1,700 sq ft ranch with a 2-car garage should land in the mid-20s squares, not 39. Flag traces that miss that band before you order anything.
+`roof_math.trace_sanity` is a 1-story smell test: living + garage, a drip-edge band, then pitch. A ~1,700 sq ft ranch with a 2-car garage should land in the mid-20s squares, not 39.
+
+The usual way to get 39 on a house that size: take living area, apply pitch, **count both slopes as the full plan**, then add 12% waste. Pitch already converts plan to slope — one drip-edge outline is enough. `diagnose_measured_squares(39, 1673, 620)` spells that out.
 
 ## Rules
 
