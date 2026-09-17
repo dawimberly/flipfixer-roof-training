@@ -46,3 +46,113 @@ def sloped_area_sqft(flat_sqft: float, pitch: str) -> float:
 
 def apply_waste_factor(sqft: float, waste_pct: float = 12.0) -> float:
     return round(sqft * (1 + waste_pct / 100), 1)
+
+
+def rectangle_perimeter_ft(area_sqft: float, aspect: float = 1.9) -> float:
+    """Perimeter of a rectangle with this floor area. Ranch roofs are ~1.8–2.0:1."""
+    if area_sqft <= 0 or aspect <= 0:
+        return 0.0
+    length = math.sqrt(area_sqft * aspect)
+    width = area_sqft / length
+    return 2.0 * (length + width)
+
+
+def one_story_expected_squares(
+    living_sqft: float,
+    garage_sqft: float = 0.0,
+    pitch: str = "4/12",
+    overhang_ft: float = 1.5,
+    waste_pct: float = 0.0,
+    aspect: float = 1.9,
+) -> float:
+    """
+    Ballpark squares for a simple 1-story house + attached garage.
+    Footprint plus a drip-edge band, then pitch. Not a bid.
+    """
+    footprint = max(living_sqft, 0.0) + max(garage_sqft, 0.0)
+    peri = rectangle_perimeter_ft(footprint, aspect)
+    plan = footprint + peri * max(overhang_ft, 0.0)
+    sloped = sloped_area_sqft(plan, pitch)
+    if waste_pct:
+        sloped = sloped * (1 + waste_pct / 100)
+    return round(sloped / 100.0, 2)
+
+
+def trace_sanity(
+    measured_squares: float,
+    living_sqft: float,
+    garage_sqft: float = 0.0,
+    stories: float = 1.0,
+    pitch: str = "4/12",
+) -> str:
+    """
+    Flag a trace that is way off the building footprint.
+
+    Compares squares to (living/stories + garage). A 1-story ranch usually
+    lands around 1.15–1.35× that footprint after overhangs and pitch.
+    Returns "low", "ok", or "high".
+    """
+    if measured_squares <= 0 or living_sqft <= 0:
+        return "ok"
+    stories = stories if stories and stories > 0 else 1.0
+    footprint = living_sqft / stories + max(garage_sqft, 0.0)
+    if footprint <= 0:
+        return "ok"
+    ratio = measured_squares * 100.0 / footprint
+    # Pitch still has to land near the footprint. 12/12 is only 1.41× plan.
+    _ = pitch
+    # Below ~footprint usually means the garage (or a wing) was dropped.
+    if ratio < 0.90:
+        return "low"
+    # 1.55× still covers 6/12 + 2 ft overhang + 12% waste. A doubled
+    # living-area trace on a 2,300 sq ft ranch is ~1.7× and should fail.
+    if ratio > 1.55:
+        return "high"
+    return "ok"
+
+
+def diagnose_measured_squares(
+    measured_squares: float,
+    living_sqft: float,
+    garage_sqft: float = 0.0,
+    stories: float = 1.0,
+    pitch: str = "4/12",
+    waste_pct: float = 12.0,
+) -> str:
+    """
+    Explain a bad square count.
+
+    The 39-on-a-1,700-sf-ranch pattern is living plan × pitch × two slopes
+    × waste. Pitch already converts plan to slope, so the second ×2 is wrong,
+    and the garage never entered the number.
+    """
+    band = trace_sanity(measured_squares, living_sqft, garage_sqft, stories, pitch)
+    expected = one_story_expected_squares(living_sqft, garage_sqft, pitch=pitch)
+    expected_waste = one_story_expected_squares(
+        living_sqft, garage_sqft, pitch=pitch, waste_pct=waste_pct
+    )
+    sloped_living = sloped_area_sqft(living_sqft, pitch) / 100.0
+    doubled_living_waste = sloped_living * 2.0 * (1 + waste_pct / 100.0)
+    if abs(measured_squares - doubled_living_waste) <= 2.0:
+        return (
+            "high: living-area plan was counted twice for two slopes, then waste "
+            f"was applied (~{doubled_living_waste:.1f} sq). Pitch already converts "
+            "plan to slope — trace the drip edge once, include the garage. "
+            f"Use ~{expected:.1f} sq net / ~{expected_waste:.1f} with {waste_pct:.0f}% waste."
+        )
+    if band == "high":
+        return (
+            f"high: {measured_squares:.1f} sq is well above a 1-story "
+            f"{living_sqft + garage_sqft:.0f} sf footprint (~{expected:.1f} sq). "
+            "Check for overlapping planes, a leftover scale length, or waste stacked "
+            f"on an already-sloped number. Use ~{expected_waste:.1f} with waste."
+        )
+    if band == "low":
+        return (
+            f"low: {measured_squares:.1f} sq looks like living area only. "
+            f"Add the garage. Expect ~{expected:.1f} sq net."
+        )
+    return (
+        f"ok: {measured_squares:.1f} sq is in band for this footprint "
+        f"(~{expected:.1f} net / ~{expected_waste:.1f} with waste)."
+    )
